@@ -2,32 +2,32 @@ import enum
 
 ENDIAN = 'big'
 
-interest = 1
-uninterest = 2
-unchoke = 3
-choke = 4
-request = 5
-annouce = 6
-payload = 7
-cancel = 8
+INTEREST = 1
+UNINTEREST = 2
+UNCHOKE = 3
+CHOKE = 4
+REQUEST = 5
+ANNOUNCE = 6
+PAYLOAD = 7
+CANCEL = 8
 
 class Message(object):
     msg_type = 0
     piece = -1
     subpiece = -1
     payload = None
-    annouce_pieces = None
+    announce_pieces = None
     def __init__(self, t, p=None, sp=None, py=None, ap=None):
         self.msg_type = t
-        if p:
+        if p is not None:
             self.piece = p
-        if sp:
+        if sp is not None:
             self.subpiece = sp
-        if py:
+        if py is not None:
             # TODO: file-like obj or bytearray
             self.payload = py
-        if ap:
-            self.annouce_pieces = ap
+        if ap is not None:
+            self.announce_pieces = ap
 
     def to_barray(self):
         barray = bytearray()
@@ -39,8 +39,8 @@ class Message(object):
         if self.payload:
             # TODO: file-like obj or bytearray
             barray += self.payload
-        if self.annouce_pieces:
-            barray += len(self.annouce_pieces).to_bytes(4, ENDIAN)
-            for x in self.annouce_pieces:
+        if self.announce_pieces:
+            barray += len(self.announce_pieces).to_bytes(4, ENDIAN)
+            for x in self.announce_pieces:
                 barray += x.to_bytes(4, ENDIAN)
         return barray

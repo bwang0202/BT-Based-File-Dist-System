@@ -1,5 +1,4 @@
-from .model import Message, ENDIAN
-from . import model
+from .model import *
 import os
 
 LENLEN = 4
@@ -41,18 +40,17 @@ def skt_recv(skt):
     py = None
     ap = None
     idx = 1
-    if t == model.request or t == model.cancel \
-        or t == model.payload:
+    if t == REQUEST or t == CANCEL or t == PAYLOAD:
         p = int.from_bytes(msg[idx:idx + 4], ENDIAN)
         sp = int.from_bytes(msg[idx + 4:idx + 8], ENDIAN)
         idx = idx + 8
-        if t == model.payload:
+        if t == PAYLOAD:
             py = msg[idx:]
-    if t == model.annouce:
-        ap_len = int.from_bytes(msg[idx:idx + 4])
+    if t == ANNOUNCE:
+        ap_len = int.from_bytes(msg[idx:idx + 4], ENDIAN)
         idx = idx + 4
         ap = []
         for i in range(ap_len):
-            ap.append(int.from_bytes(msg[idx:idx + 4]))
+            ap.append(int.from_bytes(msg[idx:idx + 4], ENDIAN))
             idx = idx + 4
     return Message(t, p, sp, py, ap)
