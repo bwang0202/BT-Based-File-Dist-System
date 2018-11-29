@@ -12,6 +12,9 @@ PAYLOAD = 7
 CANCEL = 8
 
 class Message(object):
+    """
+    Represents a Message to send
+    """
     msg_type = 0
     piece = -1
     subpiece = -1
@@ -44,3 +47,14 @@ class Message(object):
             for x in self.announce_pieces:
                 barray += x.to_bytes(4, ENDIAN)
         return barray
+
+class Connection(object):
+    """
+    Represents a Connection to a peer
+    """
+    choked = True
+    interested = False
+    choking = True
+    skt = None # Socket
+    def __init__(self, skt):
+        self.skt = skt
