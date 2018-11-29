@@ -44,3 +44,6 @@ class TestSendRecvMsg(object):
         msg_recv = message.skt_recv(pipein)
         assert msg_recv.msg_type == ANNOUNCE
         assert msg_recv.announce_pieces == ap
+
+    def test_payload(self, skt_resource):
+        pipein, pipeout = skt_resource
