@@ -67,7 +67,11 @@ class Message(object):
                 control.peer_has_piece(conn.ip, conn.port, x)
         elif self.msg_type == PAYLOAD:
             # TODO: write to file etc.
-            pass
+
+            piece = control.get_piece(self.piece)
+            subpiece = piece.thread_safe_next_subpiece()
+            if subpiece:
+                conn.send_request(self, self.piece, subpiece)
         else:
             # not implemented
             pass
@@ -93,9 +97,13 @@ class Connection(object):
         with self.lock:
             self.to_send.append(Message(ANNOUNCE, ap=pieces))
 
-    def send_type_only(self, type):
+    def send_type_only(self, t):
         with self.lock:
-            self.to_send.append(Message(type))
+            self.to_send.append(Message(t))
+
+    def send_unchoke(self):
+        with self.lock:
+            self.to_send.insert(0, Message(UNCHOKE))
 
     def send_request(self, piece, subpiece):
         with self.lock:
@@ -107,12 +115,14 @@ class Connection(object):
                 sp=subpiece, payload=payload))
 
     def serve_one(self):
-        #TODO: return msg if failed
         with self.lock:
             if self.to_send:
                 msg = self.to_send.pop(0)
-                #####
-                return msg
+                if msg.msg_type == REQUEST and self.choked:
+                    return msg
+                if msg.msg_type == PAYLOAD and self.choking:
+                    return msg
+                message.skt_send(self.skt, msg)
             return None
 
 class Piece(object):

@@ -6,4 +6,4 @@ def choose_next_piece(total_pieces, finished_pieces,
 
 def peers_to_unchoke(connections):
 	# 4 based on download speed and one optimistic unchoke
-	return connections
+	return connections[:4]
