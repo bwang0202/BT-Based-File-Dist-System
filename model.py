@@ -67,7 +67,7 @@ class Message(object):
                 control.peer_has_piece(conn.ip, conn.port, x)
         elif self.msg_type == PAYLOAD:
             # TODO: write to file etc.
-
+            view.add_progress(control.file_id, self.piece)
             piece = control.get_piece(self.piece)
             subpiece = piece.thread_safe_next_subpiece()
             if subpiece:

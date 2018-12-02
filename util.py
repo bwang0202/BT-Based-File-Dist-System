@@ -1,5 +1,6 @@
 # util.py
 # A small collection of useful functions
+import threading
 
 def collapse(data):
 	""" Given an homogenous list, returns the items of that list
@@ -24,3 +25,17 @@ def slice(string, n):
 		pass
 
 	return temp
+
+
+class myThread(threading.Thread):
+   def __init__(self, threadID, name, f, *args, **kwargs):
+      threading.Thread.__init__(self)
+      self.threadID = threadID
+      self.name = name
+      self.f = f
+      self.args = args
+      self.kwargs = kwargs
+   def run(self):
+      print ("Starting " + self.name)
+      self.f(*self.args, **self.kwargs)
+      print ("Exiting " + self.name)

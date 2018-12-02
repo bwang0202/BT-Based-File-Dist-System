@@ -1,5 +1,7 @@
 import model, view, message, strategy
-import socket, time
+import socket, time, threading
+
+from .util import *
 
 class Control(object):
 	def __init__(self, file_id, total_pieces):
@@ -20,6 +22,10 @@ class Control(object):
 		skt.connect((ip, port))
 		new_conn = model.Connection(skt, ip, port)
 		self.connections[(ip, port)] = new_conn
+		self._new_peer_steps(new_conn)
+
+	def _new_peer_steps(conn):
+		conn.announce_pieces(list(self.finished_pieces.keys()))
 
 	def get_peer(ip, port):
 		# TODO: check connections dead or not also
@@ -53,7 +59,6 @@ def _get_conn_from_control(control, ip, port):
 	if not conn:
 		control.add_peer(ip, port)
 		conn = control.get_peer(ip, port)
-		conn.announce_pieces(list(control.finished_pieces.keys()))
 	return conn
 
 def connection_read_thread(control, ip, port):
@@ -67,12 +72,12 @@ def connection_read_thread(control, ip, port):
 def connection_write_thread(control, ip, port):
 	conn = _get_conn_from_control(control, ip, port)
 	while True:
+		# TODO: use condition variable
 		msg = conn.serve_one()
 		if msg:
 			conn.to_send.append(msg)
 
-
-def download_thread(control):
+def download_control_thread(control):
 	while True:
 		# choose_next_piece
 		next_piece = control.next_piece()
@@ -88,7 +93,7 @@ def download_thread(control):
 				continue
 			conn.send_request(next_piece, subpiece)
 
-def upload_thread(control):
+def upload_control_thread(control):
 	while True:
 		time.sleep(10)
 		# peers_to_unchoke
@@ -96,3 +101,4 @@ def upload_thread(control):
 		# Serve that peer
 		for x in conns_to_unchoke:
 			x.send_unchoke()
+
