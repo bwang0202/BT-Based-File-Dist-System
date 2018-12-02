@@ -1,4 +1,5 @@
 import enum
+import threading
 
 ENDIAN = 'big'
 
@@ -48,13 +49,82 @@ class Message(object):
                 barray += x.to_bytes(4, ENDIAN)
         return barray
 
+    def apply_to_conn_control(self, conn, control):
+        # self, the msg received
+        if self.msg_type == INTEREST:
+            conn.interested = True
+        elif self.msg_type == UNINTEREST:
+            self.interested = False
+        elif self.msg_type == CHOKE:
+            self.choked = True
+        elif self.msg_type == UNCHOKE:
+            self.choked = False
+        elif self.msg_type == REQUEST:
+            if self.interested:
+                conn.requesting(self.piece, self.subpiece)
+        elif self.msg_type == ANNOUNCE:
+            for x in self.announce_pieces:
+                control.peer_has_piece(conn.ip, conn.port, x)
+        elif self.msg_type == PAYLOAD:
+            # TODO: write to file etc.
+            pass
+        else:
+            # not implemented
+            pass
+
 class Connection(object):
     """
     Represents a Connection to a peer
     """
-    choked = True
-    interested = False
-    choking = True
-    skt = None # Socket
-    def __init__(self, skt):
+    def __init__(self, skt, ip, port):
         self.skt = skt
+        self.ip = ip
+        self.port = port
+        self.choked = True
+        self.interested = False
+        self.choking = True
+        self.to_send = []
+        self.lock = threading.Lock()
+
+    def requesting(self, piece, subpiece):
+        self.to_serve.append((piece, subpiece))
+
+    def announce_pieces(self, pieces):
+        with self.lock:
+            self.to_send.append(Message(ANNOUNCE, ap=pieces))
+
+    def send_type_only(self, type):
+        with self.lock:
+            self.to_send.append(Message(type))
+
+    def send_request(self, piece, subpiece):
+        with self.lock:
+            self.to_send.append(Message(REQUEST, p=piece, sp=subpiece))
+
+    def send_payload(self, piece, subpiece, payload):
+        with self.lock:
+            self.to_send.append(Message(PAYLOAD, p=piece,
+                sp=subpiece, payload=payload))
+
+    def serve_one(self):
+        #TODO: return msg if failed
+        with self.lock:
+            if self.to_send:
+                msg = self.to_send.pop(0)
+                #####
+                return msg
+            return None
+
+class Piece(object):
+    def __init__(self, piece_number, total_subpieces=20):
+        self.piece_number = piece_number
+        self.total_subpieces = total_subpieces
+        self.next_subpiece = 0
+        self.lock = threading.Lock()
+
+    def thread_safe_next_subpiece(self):
+        with self.lock:
+            if self.next_subpiece == total_subpieces:
+                return None
+            self.next_subpiece += 1
+            return self.next_subpiece - 1
