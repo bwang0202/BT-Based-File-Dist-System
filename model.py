@@ -133,7 +133,7 @@ class Piece(object):
 
     def thread_safe_next_subpiece(self):
         with self.lock:
-            if self.next_subpiece == total_subpieces:
+            if self.next_subpiece == self.total_subpieces:
                 return None
             self.next_subpiece += 1
             return self.next_subpiece - 1

@@ -1,7 +1,8 @@
 
 def choose_next_piece(total_pieces, finished_pieces,
 		peer_to_pieces=None, piece_to_peers=None):
-	for (piece, _) in piece_to_peers:
+	print("[choose_next_piece] %s" % (str(piece_to_peers)))
+	for piece in piece_to_peers:
 		if not finished_pieces.get(piece):
 			return piece
 	return None

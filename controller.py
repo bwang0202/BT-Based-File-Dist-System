@@ -57,12 +57,16 @@ class Control(object):
 
     def peer_has_piece(self, ip, port, piece):
         
-        print(self.peer_to_pieces.get((ip, port), []))
+        print("[peer_has_piece] %s %d %d %s" % (ip,
+            port, piece, str(self.peer_to_pieces.get((ip, port), []))))
 
-        self.peer_to_pieces[(ip, port)] = self.peer_to_pieces.get(
-            (ip, port), []).append(piece)
-        self.piece_to_peers[piece] = self.piece_to_peers.get(
-            piece, []).append((ip, port))
+        pieces = self.peer_to_pieces.get((ip, port), [])
+        pieces.append(piece)
+        self.peer_to_pieces[(ip, port)] = pieces
+
+        peers = self.piece_to_peers.get(piece, [])
+        peers.append((ip, port))
+        self.piece_to_peers[piece] = peers
         if not self.piece_objects.get(piece):
             self.piece_objects[piece] = model.Piece(piece, DEBUG_PIECE_SUBPIECES)
 
