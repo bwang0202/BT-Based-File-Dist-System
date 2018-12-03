@@ -1,5 +1,5 @@
 import enum
-import threading
+from .util import *
 
 ENDIAN = 'big'
 
@@ -61,12 +61,15 @@ class Message(object):
             self.choked = False
         elif self.msg_type == REQUEST:
             if self.interested:
-                conn.requesting(self.piece, self.subpiece)
+                conn.send_payload(self.piece, self.subpiece, DEBUG_SUBPIECE_PAYLOAD)
+            else:
+                print("[apply_to_conn_control] conn not interested yet")
         elif self.msg_type == ANNOUNCE:
             for x in self.announce_pieces:
                 control.peer_has_piece(conn.ip, conn.port, x)
         elif self.msg_type == PAYLOAD:
             # TODO: write to file etc.
+            control.
             view.add_progress(control.file_id, self.piece)
             piece = control.get_piece(self.piece)
             subpiece = piece.thread_safe_next_subpiece()
@@ -126,7 +129,7 @@ class Connection(object):
             return None
 
 class Piece(object):
-    def __init__(self, piece_number, total_subpieces=20):
+    def __init__(self, piece_number, total_subpieces):
         self.piece_number = piece_number
         self.total_subpieces = total_subpieces
         self.next_subpiece = 0
