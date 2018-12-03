@@ -35,6 +35,8 @@ class Control(object):
             for x in self.downloading_pieces[piece].values():
                 payload += x
             self.finished_pieces[piece] = payload
+            for x in self.connections.values():
+                x.announce_pieces([piece])
             return piece
         return None
 
