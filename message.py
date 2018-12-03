@@ -1,23 +1,20 @@
-from .model import *
-import os
-
-LENLEN = 4
-MAGIC = b"BITTORRENT"
+import model
+from util import *
 
 def _skt_send_msg(skt, msg):
-    os.write(skt, MAGIC)
-    os.write(skt, len(msg).to_bytes(LENLEN, ENDIAN))
-    os.write(skt, msg)
+    skt.send(MAGIC)
+    skt.send(len(msg).to_bytes(LENLEN, ENDIAN))
+    skt.send(msg)
 
 def _skt_recv_msg(skt):
     msg = ""
-    magic = os.read(skt, len(MAGIC))
+    magic = skt.recv(len(MAGIC))
     todo = 0
     if magic == MAGIC:
-        todo = int.from_bytes(os.read(skt, LENLEN), ENDIAN)
+        todo = int.from_bytes(skt.recv(LENLEN), ENDIAN)
         msg = b""
         while todo > 0:
-            readed = os.read(skt, todo)
+            readed = skt.recv(todo)
             msg += readed
             todo -= len(readed)
     return msg
@@ -53,4 +50,4 @@ def skt_recv(skt):
         for i in range(ap_len):
             ap.append(int.from_bytes(msg[idx:idx + 4], ENDIAN))
             idx = idx + 4
-    return Message(t, p, sp, py, ap)
+    return model.Message(t, p, sp, py, ap)

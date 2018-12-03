@@ -3,7 +3,12 @@ import matplotlib.animation as animation
 import time
 import numpy as np
 
+DEBUG = 1
+
 def start_progress_plot(title, count):
+    print("viewing %s with %d" % (title, count))
+    if DEBUG:
+        return
     x = np.arange(count)
     y = [0] * count
     fig = plt.figure()
@@ -22,6 +27,9 @@ def start_progress_plot(title, count):
     plt.show()
 
 def add_progress(title, segment):
+    print("viewing progress %s : %d" % (title, segment))
+    if DEBUG:
+        return
     with open(title, 'a') as f:
         f.write('%d\n' % segment)
         f.flush()

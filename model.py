@@ -1,16 +1,6 @@
 import enum
-from .util import *
-
-ENDIAN = 'big'
-
-INTEREST = 1
-UNINTEREST = 2
-UNCHOKE = 3
-CHOKE = 4
-REQUEST = 5
-ANNOUNCE = 6
-PAYLOAD = 7
-CANCEL = 8
+from util import *
+import message
 
 class Message(object):
     """
@@ -32,6 +22,9 @@ class Message(object):
             self.payload = py
         if ap is not None:
             self.announce_pieces = ap
+
+    def __str__(self):
+        return "%d" % (self.msg_type)
 
     def to_barray(self):
         barray = bytearray()
@@ -69,12 +62,13 @@ class Message(object):
                 control.peer_has_piece(conn.ip, conn.port, x)
         elif self.msg_type == PAYLOAD:
             # TODO: write to file etc.
-            control.
-            view.add_progress(control.file_id, self.piece)
-            piece = control.get_piece(self.piece)
-            subpiece = piece.thread_safe_next_subpiece()
-            if subpiece:
-                conn.send_request(self, self.piece, subpiece)
+            if control.add_to_finished_subpiece(self.piece,
+                self.subpiece, self.payload):
+                view.add_progress(control.file_id, self.piece)
+                piece = control.get_piece(self.piece)
+                subpiece = piece.thread_safe_next_subpiece()
+                if subpiece:
+                    conn.send_request(self, self.piece, subpiece)
         else:
             # not implemented
             pass
@@ -97,6 +91,7 @@ class Connection(object):
         self.to_serve.append((piece, subpiece))
 
     def announce_pieces(self, pieces):
+        print("Adding annouce pieces %s" % str(pieces))
         with self.lock:
             self.to_send.append(Message(ANNOUNCE, ap=pieces))
 
@@ -121,6 +116,7 @@ class Connection(object):
         with self.lock:
             if self.to_send:
                 msg = self.to_send.pop(0)
+                print("Sending %s" % (str(msg)))
                 if msg.msg_type == REQUEST and self.choked:
                     return msg
                 if msg.msg_type == PAYLOAD and self.choking:

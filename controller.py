@@ -1,7 +1,7 @@
 import socket, time, threading, sys
 from _thread import *
 
-from .util import *
+from util import *
 import model, view, message, strategy
 
 
@@ -32,6 +32,14 @@ class Control(object):
         subpieces = self.downloading_pieces.get(piece, {})
         subpieces[subpiece] = payload
         self.downloading_pieces[piece] = subpieces
+        if len(self.downloading_pieces[piece]) == DEBUG_PIECE_SUBPIECES:
+            # TODO:
+            payload = b''
+            for (_, x) in self.downloading_pieces[piece]:
+                payload += x
+            self.finished_pieces[piece] = payload
+            return piece
+        return None
 
     def _new_peer_steps(self, conn):
         conn.announce_pieces(list(self.finished_pieces.keys()))
@@ -48,6 +56,9 @@ class Control(object):
         return self.piece_to_peers[piece]
 
     def peer_has_piece(self, ip, port, piece):
+        
+        print(self.peer_to_pieces.get((ip, port), []))
+
         self.peer_to_pieces[(ip, port)] = self.peer_to_pieces.get(
             (ip, port), []).append(piece)
         self.piece_to_peers[piece] = self.piece_to_peers.get(
@@ -90,8 +101,10 @@ def download_control_thread(control):
             # nothing to download
             time.sleep(10)
             continue
+        print("[download_control_thread] next piece: %d" % next_piece)
         # peers_for_piece
         peers_ip_ports = control.peers_for_piece(next_piece)
+        print("[download_control_thread] peers %d" % (len(peers_ip_ports)))
         piece = control.get_piece(next_piece)
         # Download from that peer
         for (ip, port) in peers_ip_ports:
@@ -104,36 +117,46 @@ def download_control_thread(control):
 
 def upload_control_thread(control):
     while True:
+        print("upload_control_thread[0]")
         time.sleep(10)
         # peers_to_unchoke
         conns_to_unchoke = control.peers_to_unchoke()
+        print("upload_control_thread[1] %s" % str(conns_to_unchoke))
         # Serve that peer
         for x in conns_to_unchoke:
             x.send_unchoke()
 
+def search_for_peers(f, control):
+    for line in f:
+        (ip, port) = line.rstrip().split(":")
+        skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        skt.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        port = int(port)
+        skt.connect((ip, port))
+        control.add_peer(ip, port, skt)
+        start_new_thread(connection_read_thread, (control, ip, port))
+        start_new_thread(connection_write_thread, (control, ip, port))
+
 def main():
     finished_pieces = {}
     HOST = "127.0.0.1"
-    PORT = sys.argv[1]
+    PORT = int(sys.argv[1])
     for x in sys.argv[2:]:
-        finished_pieces[x] = DEBUG_SUBPIECE_PAYLOAD * DEBUG_PIECE_SUBPIECES
+        finished_pieces[int(x)] = DEBUG_SUBPIECE_PAYLOAD * DEBUG_PIECE_SUBPIECES
     control = Control(1, 4, finished_pieces)
-    upload_control_t = myThread(random_thread_id(), upload_control_thread, control)
-    download_control_t = myThread(random_thread_id(), download_control_thread, control)
-    upload_control_t.run()
-    download_control_t.run()
+    start_new_thread(upload_control_thread, (control, ))
+    start_new_thread(download_control_thread, (control, ))
+    start_new_thread(search_for_peers, (sys.stdin, control))
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))
         s.listen(5)
         # a forever loop until client wants to exit 
         while True: 
-            # establish connection with client 
+            # establish connection with client
             c, (ip, port) = s.accept()
             control.add_peer(ip, port, c)
-            t1 = myThread(random_thread_id(), connection_read_thread, control, ip, port)
-            t2 = myThread(random_thread_id(), connection_write_thread, control, ip, port)
-            t1.run()
-            t2.run()
+            start_new_thread(connection_read_thread, (control, ip, port))
+            start_new_thread(connection_write_thread, (control, ip, port))
 
-
+if __name__ == '__main__': main()

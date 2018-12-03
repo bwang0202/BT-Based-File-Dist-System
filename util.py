@@ -27,22 +27,18 @@ def slice(string, n):
 
 	return temp
 
-def random_thread_id():
-	return binascii.b2a_hex(os.urandom(15))
-
-class myThread(threading.Thread):
-   def __init__(self, threadID, name, f, *args, **kwargs):
-      threading.Thread.__init__(self)
-      self.threadID = threadID
-      self.name = name
-      self.f = f
-      self.args = args
-      self.kwargs = kwargs
-   def run(self):
-      print ("Starting " + self.name)
-      self.f(*self.args, **self.kwargs)
-      print ("Exiting " + self.name)
-
 # FOR DEBUGGING purpose
 DEBUG_PIECE_SUBPIECES = 8
 DEBUG_SUBPIECE_PAYLOAD = b'\x01\x02\x03\x04\x05\x06\x07\x08\x09'
+
+LENLEN = 4
+MAGIC = b"BITTORRENT"
+ENDIAN = 'big'
+INTEREST = 1
+UNINTEREST = 2
+UNCHOKE = 3
+CHOKE = 4
+REQUEST = 5
+ANNOUNCE = 6
+PAYLOAD = 7
+CANCEL = 8
