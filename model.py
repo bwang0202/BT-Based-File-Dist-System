@@ -1,6 +1,6 @@
 import enum
 from util import *
-import message
+import message, view
 
 class Message(object):
     """
@@ -47,13 +47,13 @@ class Message(object):
         if self.msg_type == INTEREST:
             conn.interested = True
         elif self.msg_type == UNINTEREST:
-            self.interested = False
+            conn.interested = False
         elif self.msg_type == CHOKE:
-            self.choked = True
+            conn.choked = True
         elif self.msg_type == UNCHOKE:
-            self.choked = False
+            conn.choked = False
         elif self.msg_type == REQUEST:
-            if self.interested:
+            if conn.interested:
                 conn.send_payload(self.piece, self.subpiece, DEBUG_SUBPIECE_PAYLOAD)
             else:
                 print("[apply_to_conn_control] conn not interested yet")
@@ -109,8 +109,9 @@ class Connection(object):
 
     def send_payload(self, piece, subpiece, payload):
         with self.lock:
+            print("[Sending payload] %d %d" % (piece, subpiece))
             self.to_send.append(Message(PAYLOAD, p=piece,
-                sp=subpiece, payload=payload))
+                sp=subpiece, py=payload))
 
     def serve_one(self):
         with self.lock:
@@ -118,9 +119,15 @@ class Connection(object):
                 msg = self.to_send.pop(0)
                 print("Sending %s" % (str(msg)))
                 if msg.msg_type == REQUEST and self.choked:
+                    print("Failed to send REQUEST due to connection choked")
                     return msg
                 if msg.msg_type == PAYLOAD and self.choking:
+                    print("Failed to send PAYLOAD due to connection choking")
                     return msg
+                if msg.msg_type == UNCHOKE:
+                    self.choking = False
+                if msg.msg_type == CHOKE:
+                    self.choking = True
                 message.skt_send(self.skt, msg)
             return None
 

@@ -12,18 +12,14 @@ class Control(object):
         self.total_pieces = total_pieces
         self.peer_to_pieces = {}
         self.piece_to_peers = {}
-        # TODO: now storing payload as values for simplicity
+        # TODO: now storing payload as bytes array for simplicity
         self.finished_pieces = finished_pieces
         self.downloading_pieces = {}
         self.piece_objects = {}
         view.start_progress_plot(file_id, total_pieces)
 
     def add_peer(self, ip, port, conn):
-        # Create the socket connection
-        # Store in Connection object
-        # skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # sck.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        # skt.connect((ip, port))
+        # Create the socket connection, store in Connection object
         new_conn = model.Connection(conn, ip, port)
         self.connections[(ip, port)] = new_conn
         self._new_peer_steps(new_conn)
@@ -32,10 +28,11 @@ class Control(object):
         subpieces = self.downloading_pieces.get(piece, {})
         subpieces[subpiece] = payload
         self.downloading_pieces[piece] = subpieces
+        print("[add_to_finished_subpiece] %s" % (str(self.downloading_pieces)))
         if len(self.downloading_pieces[piece]) == DEBUG_PIECE_SUBPIECES:
             # TODO:
             payload = b''
-            for (_, x) in self.downloading_pieces[piece]:
+            for x in self.downloading_pieces[piece].values():
                 payload += x
             self.finished_pieces[piece] = payload
             return piece
@@ -103,9 +100,10 @@ def download_control_thread(control):
         next_piece = control.next_piece()
         if not next_piece:
             # nothing to download
-            time.sleep(10)
+            time.sleep(1)
             continue
         print("[download_control_thread] next piece: %d" % next_piece)
+        time.sleep(1)
         # peers_for_piece
         peers_ip_ports = control.peers_for_piece(next_piece)
         print("[download_control_thread] peers %d" % (len(peers_ip_ports)))
