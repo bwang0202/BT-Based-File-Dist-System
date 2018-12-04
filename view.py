@@ -3,10 +3,10 @@ import matplotlib.animation as animation
 import time
 import numpy as np
 
-DEBUG = 1
+DEBUG = False
 
 def start_progress_plot(title, count):
-    print("viewing %s with %d" % (title, count))
+    print("Staring view %s with %d" % (title, count))
     if DEBUG:
         return
     x = np.arange(count)
@@ -27,7 +27,7 @@ def start_progress_plot(title, count):
     plt.show()
 
 def add_progress(title, segment):
-    print("viewing progress %s : %d" % (title, segment))
+    print("Adding view progress %s : %d" % (title, segment))
     if DEBUG:
         return
     with open(title, 'a') as f:

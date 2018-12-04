@@ -45,29 +45,35 @@ class Message(object):
     def apply_to_conn_control(self, conn, control):
         # self, the msg received
         if self.msg_type == INTEREST:
-            conn.interested = True
+            print_yellow("Received INTEREST")
+            conn.set_interested(True)
         elif self.msg_type == UNINTEREST:
-            conn.interested = False
+            conn.set_interested(False)
         elif self.msg_type == CHOKE:
-            conn.choked = True
+            conn.set_choked(True)
         elif self.msg_type == UNCHOKE:
-            conn.choked = False
+            print_yellow("Received UNCHOKE")
+            conn.set_choked(False)
         elif self.msg_type == REQUEST:
-            if conn.interested:
+            if conn.get_interested():
+                print_blue("About to send payload [%d:%d]" % (self.piece, self.subpiece))
                 conn.send_payload(self.piece, self.subpiece, DEBUG_SUBPIECE_PAYLOAD)
             else:
-                print("[apply_to_conn_control] conn not interested yet")
+                pass
+                #print("[apply_to_conn_control] conn not interested yet")
         elif self.msg_type == ANNOUNCE:
             for x in self.announce_pieces:
                 control.peer_has_piece(conn.ip, conn.port, x)
         elif self.msg_type == PAYLOAD:
             # TODO: write to file etc.
+            print_blue("Received payload [%d:%d]" % (self.piece, self.subpiece))
             if control.add_to_finished_subpiece(self.piece,
                 self.subpiece, self.payload):
-                view.add_progress(control.file_id, self.piece)
+                print_green("Finished download [%d]" % self.piece)
                 piece = control.get_piece(self.piece)
                 subpiece = piece.thread_safe_next_subpiece()
                 if subpiece:
+                    print_blue("About to get is [%d:%d]" % (self.piece, subpiece))
                     conn.send_request(self, self.piece, subpiece)
         else:
             # not implemented
@@ -82,53 +88,124 @@ class Connection(object):
         self.ip = ip
         self.port = port
         self.choked = True
-        self.interested = False
         self.choking = True
-        self.to_send = []
+        self.interested = False
+        self.interesting = False
+        self.payloads_to_send = []
+        self.requests_to_send = []
+        self.controls_to_send = []
         self.lock = threading.Lock()
+        self.send_cv = threading.Condition(self.lock)
 
-    def requesting(self, piece, subpiece):
-        self.to_serve.append((piece, subpiece))
+    def get_interested(self):
+        with self.lock:
+            return self.interested
+
+    def set_interested(self, interested):
+        with self.lock:
+            self.interested = interested
+
+    def set_choked(self, choked):
+        with self.send_cv:
+            old_choked = self.choked
+            self.choked = choked
+            if old_choked and not self.choked \
+                    and len(self.requests_to_send):
+                self.send_cv.notify()
+
+    def set_choking(self, choking):
+        with self.send_cv:
+            old_choking = self.old_choking
+            self.choking = choking
+            if old_choking and not self.choking \
+                    and len(self.payloads_to_send):
+                self.send_cv.notify()
 
     def announce_pieces(self, pieces):
-        print("Adding annouce pieces %s" % str(pieces))
-        with self.lock:
-            self.to_send.append(Message(ANNOUNCE, ap=pieces))
+        with self.send_cv:
+            self.controls_to_send.append(Message(ANNOUNCE, ap=pieces))
+            if len(self.controls_to_send) == 1:
+                self.send_cv.notify()
 
     def send_type_only(self, t):
-        with self.lock:
-            self.to_send.append(Message(t))
+        with self.send_cv:
+            self.controls_to_send.append(Message(t))
+            if len(self.controls_to_send) == 1:
+                self.send_cv.notify()
 
     def send_unchoke(self):
-        with self.lock:
-            self.to_send.insert(0, Message(UNCHOKE))
+        with self.send_cv:
+            self.controls_to_send.insert(0, Message(UNCHOKE))
+            if len(self.controls_to_send) == 1:
+                self.send_cv.notify()
 
     def send_request(self, piece, subpiece):
-        with self.lock:
-            self.to_send.append(Message(REQUEST, p=piece, sp=subpiece))
+        with self.send_cv:
+            self.requests_to_send.append(
+                Message(REQUEST, p=piece, sp=subpiece))
+            if not self.choked and len(self.requests_to_send) == 1:
+                self.send_cv.notify()
 
     def send_payload(self, piece, subpiece, payload):
-        with self.lock:
-            print("[Sending payload] %d %d" % (piece, subpiece))
-            self.to_send.append(Message(PAYLOAD, p=piece,
+        with self.send_cv:
+            self.payloads_to_send.append(Message(PAYLOAD, p=piece,
                 sp=subpiece, py=payload))
+            if not self.choking and len(self.payloads_to_send) == 1:
+                self.send_cv.notify()
+
+    def _nothing_to_send(self):
+        if len(self.controls_to_send):
+            #print("controls_to_send %d" % len(self.controls_to_send))
+            return False
+        if not self.choked and len(self.requests_to_send):
+            #print("requests_to_send %d" % len(self.requests_to_send))
+            return False
+        if not self.choking and len(self.payloads_to_send):
+            #print("payloads_to_send %d" % len(self.payloads_to_send))
+            return False
+        return True
+
+    def _msg_to_send(self):
+        #print("[_msg_to_send] %d %d %d" % (len(self.controls_to_send),
+        #    len(self.requests_to_send), len(self.payloads_to_send)))
+        if len(self.controls_to_send):
+            return self.controls_to_send.pop(0)
+        if not self.choked and len(self.requests_to_send):
+            return self.requests_to_send.pop(0)
+        if not self.choking and len(self.payloads_to_send):
+            return self.payloads_to_send.pop(0)
+        return None
 
     def serve_one(self):
-        with self.lock:
-            if self.to_send:
-                msg = self.to_send.pop(0)
-                print("Sending %s" % (str(msg)))
-                if msg.msg_type == REQUEST and self.choked:
-                    print("Failed to send REQUEST due to connection choked")
-                    return msg
-                if msg.msg_type == PAYLOAD and self.choking:
-                    print("Failed to send PAYLOAD due to connection choking")
-                    return msg
-                if msg.msg_type == UNCHOKE:
-                    self.choking = False
-                if msg.msg_type == CHOKE:
-                    self.choking = True
-                message.skt_send(self.skt, msg)
+        with self.send_cv:
+            while self._nothing_to_send():
+                self.send_cv.wait()
+
+            msg = self._msg_to_send()
+                
+            if msg.msg_type == CHOKE:
+                if self.choking:
+                    return
+                self.choking = True
+            elif msg.msg_type == UNCHOKE:
+                if not self.choking:
+                    return
+                self.choking = False
+            elif msg.msg_type == INTEREST:
+                if self.interesting:
+                    return
+                self.interesting = True
+            elif msg.msg_type == UNINTEREST:
+                if not self.interesting:
+                    return
+                self.interesting = False
+
+            message.skt_send(self.skt, msg)
+
+            if msg.msg_type == REQUEST:
+                print_yellow("Sent request for [%d:%d]" % (msg.piece, msg.subpiece))
+            elif msg.msg_type == PAYLOAD:
+                print_red("Sent payload [%d:%d]" % (msg.piece, msg.subpiece))
             return None
 
 class Piece(object):
@@ -139,6 +216,10 @@ class Piece(object):
         self.lock = threading.Lock()
 
     def thread_safe_next_subpiece(self):
+        # FIXME: in case request is queued but choked,
+        # Later calls to this func should handle it by
+        # returning that subpiece again to get from a
+        # different peer
         with self.lock:
             if self.next_subpiece == self.total_subpieces:
                 return None

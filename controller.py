@@ -16,7 +16,6 @@ class Control(object):
         self.finished_pieces = finished_pieces
         self.downloading_pieces = {}
         self.piece_objects = {}
-        view.start_progress_plot(file_id, total_pieces)
 
     def add_peer(self, ip, port, conn):
         # Create the socket connection, store in Connection object
@@ -28,7 +27,6 @@ class Control(object):
         subpieces = self.downloading_pieces.get(piece, {})
         subpieces[subpiece] = payload
         self.downloading_pieces[piece] = subpieces
-        print("[add_to_finished_subpiece] %s" % (str(self.downloading_pieces)))
         if len(self.downloading_pieces[piece]) == DEBUG_PIECE_SUBPIECES:
             # TODO:
             payload = b''
@@ -55,10 +53,6 @@ class Control(object):
         return self.piece_to_peers[piece]
 
     def peer_has_piece(self, ip, port, piece):
-        
-        print("[peer_has_piece] %s %d %d %s" % (ip,
-            port, piece, str(self.peer_to_pieces.get((ip, port), []))))
-
         pieces = self.peer_to_pieces.get((ip, port), [])
         pieces.append(piece)
         self.peer_to_pieces[(ip, port)] = pieces
@@ -91,10 +85,7 @@ def connection_read_thread(control, ip, port):
 def connection_write_thread(control, ip, port):
     conn = _get_conn_from_control(control, ip, port)
     while True:
-        # TODO: use condition variable
-        msg = conn.serve_one()
-        if msg:
-            conn.to_send.append(msg)
+        conn.serve_one()
 
 def download_control_thread(control):
     while True:
@@ -104,11 +95,10 @@ def download_control_thread(control):
             # nothing to download
             time.sleep(1)
             continue
-        print("[download_control_thread] next piece: %d" % next_piece)
+        # Choose next piece based on condition var(a piece finished)
         time.sleep(1)
         # peers_for_piece
         peers_ip_ports = control.peers_for_piece(next_piece)
-        print("[download_control_thread] peers %d" % (len(peers_ip_ports)))
         piece = control.get_piece(next_piece)
         # Download from that peer
         for (ip, port) in peers_ip_ports:
@@ -121,11 +111,9 @@ def download_control_thread(control):
 
 def upload_control_thread(control):
     while True:
-        print("upload_control_thread[0]")
         time.sleep(10)
         # peers_to_unchoke
         conns_to_unchoke = control.peers_to_unchoke()
-        print("upload_control_thread[1] %s" % str(conns_to_unchoke))
         # Serve that peer
         for x in conns_to_unchoke:
             x.send_unchoke()
@@ -147,7 +135,10 @@ def main():
     PORT = int(sys.argv[1])
     for x in sys.argv[2:]:
         finished_pieces[int(x)] = DEBUG_SUBPIECE_PAYLOAD * DEBUG_PIECE_SUBPIECES
-    control = Control(1, 4, finished_pieces)
+    print_green("Got pieces: %s" % str(finished_pieces.keys()))
+    file_id = 1
+    total_pieces = 4
+    control = Control(file_id, total_pieces, finished_pieces)
     start_new_thread(upload_control_thread, (control, ))
     start_new_thread(download_control_thread, (control, ))
     start_new_thread(search_for_peers, (sys.stdin, control))

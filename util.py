@@ -2,6 +2,7 @@
 # A small collection of useful functions
 import threading
 import os, binascii
+import colors
 
 def collapse(data):
 	""" Given an homogenous list, returns the items of that list
@@ -26,6 +27,18 @@ def slice(string, n):
 		pass
 
 	return temp
+
+def print_red(s):
+	print(colors.red(s)) # send piece payload
+
+def print_green(s):
+	print(colors.green(s)) # recieved piece
+
+def print_blue(s):
+	print(colors.blue(s)) # subpieces stuff
+
+def print_yellow(s):
+	print(colors.yellow(s))  # Signals like choke, unchoke, interested, request
 
 # FOR DEBUGGING purpose
 DEBUG_PIECE_SUBPIECES = 8
