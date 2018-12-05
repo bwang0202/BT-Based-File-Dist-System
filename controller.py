@@ -1,4 +1,4 @@
-import socket, time, threading, sys
+import socket, time, threading, sys, threading
 from _thread import *
 
 from util import *
@@ -6,67 +6,110 @@ import model, view, message, strategy
 
 
 class Control(object):
-    def __init__(self, file_id, total_pieces, finished_pieces={}):
+    def __init__(self, file_id, total_pieces, finished_pieces=[]):
         self.connections = {}
         self.file_id = file_id
+        self.next_piece_cv = threading.Condition()
+        # Keep track of pieces/subpieces progress
         self.total_pieces = total_pieces
-        self.peer_to_pieces = {}
+        self.peer_pieces = {}
         self.piece_to_peers = {}
-        # TODO: now storing payload as bytes array for simplicity
         self.finished_pieces = finished_pieces
-        self.downloading_pieces = {}
-        self.piece_objects = {}
+        self.finished_subpieces = {}
+        self.ongoing_pieces = []
+        self.ongoing_pieces_request_subpieces = {}
+        self.ongoing_peer_subpieces = {}
 
     def add_peer(self, ip, port, conn):
         # Create the socket connection, store in Connection object
         new_conn = model.Connection(conn, ip, port)
         self.connections[(ip, port)] = new_conn
-        self._new_peer_steps(new_conn)
+        new_conn.announce_pieces(self.finished_pieces)
 
-    def add_to_finished_subpiece(self, piece, subpiece, payload):
-        subpieces = self.downloading_pieces.get(piece, {})
-        subpieces[subpiece] = payload
-        self.downloading_pieces[piece] = subpieces
-        if len(self.downloading_pieces[piece]) == DEBUG_PIECE_SUBPIECES:
-            # TODO:
-            payload = b''
-            for x in self.downloading_pieces[piece].values():
-                payload += x
-            self.finished_pieces[piece] = payload
-            for x in self.connections.values():
-                x.announce_pieces([piece])
-            return piece
+    def _available_peer_for_piece(self, piece):
+        # find a peer for np
+        requested_subpiece = self.ongoing_pieces_request_subpieces.get(piece, -1)
+        for (ip, port) in self.piece_to_peers.get(piece):
+            op_subpieces = self.ongoing_peer_subpieces.get((ip, port), [])
+            if len(op_subpieces) < PIPELINED_REQUEST:
+                requested_subpiece += 1
+                # ongoing_pieces_request_subpieces
+                self.ongoing_pieces_request_subpieces[piece] = requested_subpiece
+                # ongoing_peer_subpieces
+                op_subpieces.append((piece, requested_subpiece))
+                self.ongoing_peer_subpieces[(ip, port)] = op_subpieces
+                # ongoing_pieces
+                if piece not in self.ongoing_pieces:
+                    self.ongoing_pieces.append(piece)
+                return (ip, port, piece, requested_subpiece)
         return None
 
-    def _new_peer_steps(self, conn):
-        conn.announce_pieces(list(self.finished_pieces.keys()))
+    def _next_subpiece(self):
+        # Return None if nothing to request next
+        # On going piece first
+        for piece in self.ongoing_pieces:
+            # All subpieces has been requested
+            requested_subpiece = self.ongoing_pieces_request_subpieces.get(piece, -1)
+            if requested_subpiece == DEBUG_PIECE_SUBPIECES:
+                continue
+            nsp = self._available_peer_for_piece(piece)
+            if nsp:
+                return nsp
+
+        # None of peers has room for on going pieces
+        if len(self.ongoing_pieces) == CONCURRENT_PIECES:
+            return None
+
+        # Next piece
+        np = strategy.choose_next_piece(self.finished_pieces, self.piece_to_peers,
+                self.ongoing_pieces)
+        if np is None:
+            # Has no next piece
+            return None
+        return self._available_peer_for_piece(np)
+
+    def next_subpiece(self):
+        # return (ip, port, piece, subpiece)
+        with self.next_piece_cv:
+            # Block until next piece can be requested
+            while True:
+                nsp = self._next_subpiece()
+                if not nsp:
+                    self.next_piece_cv.wait()
+                else:
+                    break
+            return nsp
+
+    def add_to_finished_subpiece(self, ip, port, piece, subpiece, payload):
+        need_annouce = False
+        with self.next_piece_cv:
+            self.ongoing_peer_subpieces[(ip, port)].remove((piece, subpiece))
+            if piece not in self.finished_pieces:
+                append_dict_dict(self.finished_subpieces, piece, subpiece, payload)
+                if len(self.finished_subpieces[piece]) == DEBUG_PIECE_SUBPIECES:
+                    self.finished_pieces.append(piece)
+                    # TODO: Construct the piece
+                    self.finished_subpieces.pop(piece)
+                    self.ongoing_pieces.remove(piece)
+                    self.ongoing_pieces_request_subpieces.pop(piece)
+                    need_annouce = True
+                    print_green("Received piece [%d]" % piece)
+            self.next_piece_cv.notify()
+        if need_annouce:
+            for x in self.connections.values():
+                x.announce_pieces([piece])
 
     def get_peer(self, ip, port):
         # TODO: check connections dead or not also
-        # Return Connection object or None
         return self.connections[(ip, port)]
 
-    def get_piece(self, piece):
-        return self.piece_objects[piece]
-
-    def peers_for_piece(self, piece):
-        return self.piece_to_peers[piece]
-
     def peer_has_piece(self, ip, port, piece):
-        pieces = self.peer_to_pieces.get((ip, port), [])
-        pieces.append(piece)
-        self.peer_to_pieces[(ip, port)] = pieces
-
-        peers = self.piece_to_peers.get(piece, [])
-        peers.append((ip, port))
-        self.piece_to_peers[piece] = peers
-        if not self.piece_objects.get(piece):
-            self.piece_objects[piece] = model.Piece(piece, DEBUG_PIECE_SUBPIECES)
-
-    def next_piece(self):
-        return strategy.choose_next_piece(self.total_pieces,
-            self.finished_pieces, self.peer_to_pieces,
-            self.piece_to_peers)
+        with self.next_piece_cv:
+            # Add to peer pieces
+            append_dict_list(self.peer_pieces, (ip, port), piece)
+            # Add to piece peers
+            append_dict_list(self.piece_to_peers, piece, (ip, port))
+            self.next_piece_cv.notify()
 
     def peers_to_unchoke(self):
         return strategy.peers_to_unchoke(self.connections.values())
@@ -78,45 +121,40 @@ def connection_read_thread(control, ip, port):
     # Connection object
     conn = _get_conn_from_control(control, ip, port)
     while True:
-        # Should block until some message arrives
+        # Block until some message arrives
         msg = message.skt_recv(conn.skt)
         msg.apply_to_conn_control(conn, control)
 
 def connection_write_thread(control, ip, port):
     conn = _get_conn_from_control(control, ip, port)
     while True:
+        # Block until there is something to send
         conn.serve_one()
 
 def download_control_thread(control):
+    counter = 0
     while True:
-        # choose_next_piece
-        next_piece = control.next_piece()
-        if not next_piece:
-            # nothing to download
+        counter += 1
+        # Block until can request next subpiece
+        (ip, port, piece, subpiece) = control.next_subpiece()
+        conn = _get_conn_from_control(control, ip, port)
+        conn.send_type_only(INTEREST)
+        conn.send_request(piece, subpiece)
+        # TODO FIXME: not really needed when next_subpiece actually blocks
+        # because currently subpiece size is too small
+        if counter == 4:
             time.sleep(1)
-            continue
-        # Choose next piece based on condition var(a piece finished)
-        time.sleep(1)
-        # peers_for_piece
-        peers_ip_ports = control.peers_for_piece(next_piece)
-        piece = control.get_piece(next_piece)
-        # Download from that peer
-        for (ip, port) in peers_ip_ports:
-            conn = _get_conn_from_control(control, ip, port)
-            conn.send_type_only(model.INTEREST)
-            subpiece = piece.thread_safe_next_subpiece()
-            if subpiece == None:
-                continue
-            conn.send_request(next_piece, subpiece)
+            counter = 0
 
 def upload_control_thread(control):
     while True:
-        time.sleep(10)
         # peers_to_unchoke
         conns_to_unchoke = control.peers_to_unchoke()
         # Serve that peer
         for x in conns_to_unchoke:
+            print("want to send unchoke first lady")
             x.send_unchoke()
+        time.sleep(10)
 
 def search_for_peers(f, control):
     for line in f:
@@ -130,18 +168,18 @@ def search_for_peers(f, control):
         start_new_thread(connection_write_thread, (control, ip, port))
 
 def main():
-    finished_pieces = {}
+    finished_pieces = []
     HOST = "127.0.0.1"
     PORT = int(sys.argv[1])
     for x in sys.argv[2:]:
-        finished_pieces[int(x)] = DEBUG_SUBPIECE_PAYLOAD * DEBUG_PIECE_SUBPIECES
-    print_green("Got pieces: %s" % str(finished_pieces.keys()))
+        finished_pieces.append(int(x))
+    print_green("Got pieces: %s" % str(finished_pieces))
     file_id = 1
     total_pieces = 4
     control = Control(file_id, total_pieces, finished_pieces)
+    start_new_thread(search_for_peers, (sys.stdin, control))
     start_new_thread(upload_control_thread, (control, ))
     start_new_thread(download_control_thread, (control, ))
-    start_new_thread(search_for_peers, (sys.stdin, control))
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind((HOST, PORT))

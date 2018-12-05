@@ -67,14 +67,8 @@ class Message(object):
         elif self.msg_type == PAYLOAD:
             # TODO: write to file etc.
             print_blue("Received payload [%d:%d]" % (self.piece, self.subpiece))
-            if control.add_to_finished_subpiece(self.piece,
-                self.subpiece, self.payload):
-                print_green("Finished download [%d]" % self.piece)
-                piece = control.get_piece(self.piece)
-                subpiece = piece.thread_safe_next_subpiece()
-                if subpiece:
-                    print_blue("About to get is [%d:%d]" % (self.piece, subpiece))
-                    conn.send_request(self, self.piece, subpiece)
+            control.add_to_finished_subpiece(conn.ip, conn.port,
+                self.piece, self.subpiece, self.payload)
         else:
             # not implemented
             pass
@@ -135,6 +129,7 @@ class Connection(object):
 
     def send_unchoke(self):
         with self.send_cv:
+            print("Want to send UNCHOKE man!!!")
             self.controls_to_send.insert(0, Message(UNCHOKE))
             if len(self.controls_to_send) == 1:
                 self.send_cv.notify()
@@ -206,22 +201,4 @@ class Connection(object):
                 print_yellow("Sent request for [%d:%d]" % (msg.piece, msg.subpiece))
             elif msg.msg_type == PAYLOAD:
                 print_red("Sent payload [%d:%d]" % (msg.piece, msg.subpiece))
-            return None
 
-class Piece(object):
-    def __init__(self, piece_number, total_subpieces):
-        self.piece_number = piece_number
-        self.total_subpieces = total_subpieces
-        self.next_subpiece = 0
-        self.lock = threading.Lock()
-
-    def thread_safe_next_subpiece(self):
-        # FIXME: in case request is queued but choked,
-        # Later calls to this func should handle it by
-        # returning that subpiece again to get from a
-        # different peer
-        with self.lock:
-            if self.next_subpiece == self.total_subpieces:
-                return None
-            self.next_subpiece += 1
-            return self.next_subpiece - 1
