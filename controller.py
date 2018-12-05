@@ -152,7 +152,6 @@ def upload_control_thread(control):
         conns_to_unchoke = control.peers_to_unchoke()
         # Serve that peer
         for x in conns_to_unchoke:
-            print("want to send unchoke first lady")
             x.send_unchoke()
         time.sleep(10)
 

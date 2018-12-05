@@ -129,7 +129,6 @@ class Connection(object):
 
     def send_unchoke(self):
         with self.send_cv:
-            print("Want to send UNCHOKE man!!!")
             self.controls_to_send.insert(0, Message(UNCHOKE))
             if len(self.controls_to_send) == 1:
                 self.send_cv.notify()
