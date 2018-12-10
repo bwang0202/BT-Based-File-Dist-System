@@ -6,10 +6,9 @@ from util import *
 import model, view, message, strategy
 
 class Control(object):
-    def __init__(self, file_id, peer_id, finished_pieces=[]):
+    def __init__(self, file_id, finished_pieces=[]):
         self.connections = {}
         self.file_id = file_id
-        self.peer_id = peer_id
         self.next_piece_cv = threading.Condition()
         # Keep track of pieces/subpieces progress
         self.peer_pieces = {}
@@ -20,9 +19,9 @@ class Control(object):
         self.ongoing_pieces_request_subpieces = {}
         self.ongoing_peer_subpieces = {}
 
-    def add_peer(self, ip, port, conn):
+    def add_peer(self, ip, port, conn, peer_id=0):
         # Create the socket connection, store in Connection object
-        new_conn = model.Connection(conn, ip, port)
+        new_conn = model.Connection(conn, ip, port, peer_id)
         self.connections[(ip, port)] = new_conn
         new_conn.announce_pieces(self.finished_pieces)
 
@@ -125,8 +124,9 @@ def connection_read_thread(control, ip, port):
         msg = message.skt_recv(conn.skt)
         msg.apply_to_conn_control(conn, control)
 
-def connection_write_thread(control, ip, port):
+def connection_write_thread(control, ip, port, peer_id):
     conn = _get_conn_from_control(control, ip, port)
+    conn.send_peer_id(peer_id)
     while True:
         # Block until there is something to send
         conn.serve_one()
@@ -155,28 +155,29 @@ def upload_control_thread(control):
             x.send_unchoke()
         time.sleep(10)
 
-def search_for_peers(control, url, infohash, p_port, host):
+def search_for_peers(control, url, infohash, my_port, host, my_peer_id):
     known_peers = set()
     while True:
         time.sleep(5)
-        resp = requests.get("http://%s/info_hash=%s&port=%d" % (url, infohash, p_port))
+        resp = requests.get("http://%s/info_hash=%s&port=%d&peer_id=%s" % (url, infohash, my_port, my_peer_id))
         peers = json.loads(resp.text)["peers"]
         for peer in peers:
             ip = peer[0]
-            port = peer[1]
-            if str(ip) == str(host) and p_port == port:
+            port = int(peer[1])
+            peer_id = int(peer[2])
+            if peer_id == my_peer_id:
                 continue
-            if (ip, port) in known_peers:
+            if (ip, port, peer_id) in known_peers:
                 continue
-            print("Adding peers %s:%s" % (str(ip), str(port)))
-            known_peers.add((ip, port))
+            print("Adding peers [%d]%s:%d" % (peer_id, str(ip), port))
+            known_peers.add((ip, port, peer_id))
             skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             skt.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             port = int(port)
             skt.connect((ip, port))
-            control.add_peer(ip, port, skt)
+            control.add_peer(ip, port, skt, peer_id)
             start_new_thread(connection_read_thread, (control, ip, port))
-            start_new_thread(connection_write_thread, (control, ip, port))
+            start_new_thread(connection_write_thread, (control, ip, port, my_peer_id))
 
 def main():
     finished_pieces = []
@@ -184,12 +185,12 @@ def main():
     PORT = int(sys.argv[1])
     tracker_url = sys.argv[2]
     info_hash = sys.argv[3]
-    for x in sys.argv[4:]:
+    peer_id = int(sys.argv[4])
+    for x in sys.argv[5:]:
         finished_pieces.append(int(x))
     print_green("Got pieces: %s" % str(finished_pieces))
-    peer_id = "%s:%d" % (IP, PORT)
-    control = Control(info_hash, peer_id, finished_pieces)
-    start_new_thread(search_for_peers, (control, tracker_url, info_hash, PORT, IP))
+    control = Control(info_hash, finished_pieces)
+    start_new_thread(search_for_peers, (control, tracker_url, info_hash, PORT, IP, peer_id))
     start_new_thread(upload_control_thread, (control, ))
     start_new_thread(download_control_thread, (control, ))
 
@@ -202,6 +203,6 @@ def main():
             c, (ip, port) = s.accept()
             control.add_peer(ip, port, c)
             start_new_thread(connection_read_thread, (control, ip, port))
-            start_new_thread(connection_write_thread, (control, ip, port))
+            start_new_thread(connection_write_thread, (control, ip, port, peer_id))
 
 if __name__ == '__main__': main()

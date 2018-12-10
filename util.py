@@ -38,7 +38,7 @@ def append_dict_dict(d, k, v, vv):
     tmp[v] = vv
     d[k] = tmp
 
-DEBUG = True
+DEBUG = False
 
 def print_red(s):
     if DEBUG:
@@ -58,7 +58,7 @@ def print_yellow(s):
 CONCURRENT_PIECES = 4
 PIPELINED_REQUEST = 5
 
-DEBUG_PIECE_SUBPIECES = 8
+DEBUG_PIECE_SUBPIECES = 20
 # 128KB
 DEBUG_SUBPIECE_PAYLOAD = b'\x01\x02\x03\x04\x05\x06\x07\x08' * 16384
 
@@ -73,3 +73,4 @@ REQUEST = 5
 ANNOUNCE = 6
 PAYLOAD = 7
 CANCEL = 8
+PEERID = 9

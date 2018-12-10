@@ -54,4 +54,6 @@ def skt_recv(skt):
         for i in range(ap_len):
             ap.append(int.from_bytes(msg[idx:idx + 4], ENDIAN))
             idx = idx + 4
+    if t == PEERID:
+        p = int.from_bytes(msg[idx:idx + 4], ENDIAN)
     return model.Message(t, p, sp, py, ap)

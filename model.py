@@ -45,16 +45,16 @@ class Message(object):
     def apply_to_conn_control(self, conn, control):
         # self, the msg received
         if self.msg_type == INTEREST:
-            print_yellow("Received INTEREST from %s" % control.peer_id)
+            print_yellow("Received INTEREST from %d" % conn.peer_id)
             conn.set_interested(True)
         elif self.msg_type == UNINTEREST:
-            print_yellow("Received UNINTEREST from %s" % control.peer_id)
+            print_yellow("Received UNINTEREST from %d" % conn.peer_id)
             conn.set_interested(False)
         elif self.msg_type == CHOKE:
-            print_yellow("Received CHOKE from %s" % control.peer_id)
+            print_yellow("Received CHOKE from %d" % conn.peer_id)
             conn.set_choked(True)
         elif self.msg_type == UNCHOKE:
-            print_yellow("Received UNCHOKE from %s" % control.peer_id)
+            print_yellow("Received UNCHOKE from %d" % conn.peer_id)
             conn.set_choked(False)
         elif self.msg_type == REQUEST:
             if conn.get_interested():
@@ -71,6 +71,8 @@ class Message(object):
             print_blue("Received payload [%d:%d]" % (self.piece, self.subpiece))
             control.add_to_finished_subpiece(conn.ip, conn.port,
                 self.piece, self.subpiece, self.payload)
+        elif self.msg_type == PEERID:
+            conn.set_peer_id(self.piece)
         else:
             # not implemented
             pass
@@ -79,10 +81,11 @@ class Connection(object):
     """
     Represents a Connection to a peer
     """
-    def __init__(self, skt, ip, port):
+    def __init__(self, skt, ip, port, peer_id=0):
         self.skt = skt
         self.ip = ip
         self.port = port
+        self.peer_id = peer_id
         self.choked = True
         self.choking = True
         self.interested = False
@@ -92,6 +95,9 @@ class Connection(object):
         self.controls_to_send = []
         self.lock = threading.Lock()
         self.send_cv = threading.Condition(self.lock)
+
+    def set_peer_id(self, peer_id):
+        self.peer_id = peer_id
 
     def get_interested(self):
         with self.lock:
@@ -120,6 +126,12 @@ class Connection(object):
     def announce_pieces(self, pieces):
         with self.send_cv:
             self.controls_to_send.append(Message(ANNOUNCE, ap=pieces))
+            if len(self.controls_to_send) == 1:
+                self.send_cv.notify()
+
+    def send_peer_id(self, peer_id):
+        with self.send_cv:
+            self.controls_to_send.append(Message(PEERID, p=peer_id))
             if len(self.controls_to_send) == 1:
                 self.send_cv.notify()
 

@@ -19,11 +19,11 @@ class PeersData():
     def __init__(self):
         self.torrents = {}
 
-    def add_peer(self, info_hash, ip, port):
-        if info_hash in self.torrents and (ip, port) not in self.torrents[info_hash]:
-            self.torrents[info_hash].append((ip, port))
+    def add_peer(self, info_hash, ip, port, peer_id):
+        if info_hash in self.torrents and (ip, port, peer_id) not in self.torrents[info_hash]:
+            self.torrents[info_hash].append((ip, port, peer_id))
         if info_hash not in self.torrents:
-            self.torrents[info_hash] = [(ip, port)]
+            self.torrents[info_hash] = [(ip, port, peer_id)]
 
     def get_peers(self):
         return self.torrents
@@ -40,10 +40,11 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         info_hash = client_info["info_hash"][0]
         ip = s.client_address[0]
         port = client_info["port"][0]
+        peer_id = client_info["peer_id"][0]
 
         response = {}
         response["peers"] = data.get_peers().get(info_hash, [])
-        data.add_peer(info_hash, ip, port)
+        data.add_peer(info_hash, ip, port, peer_id)
         s.send_response(200)
         s.end_headers()
         s.wfile.write(json.dumps(response))
