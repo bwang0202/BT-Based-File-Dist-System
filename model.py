@@ -1,6 +1,6 @@
 import enum
 from util import *
-import message, view
+import message, view, controller
 
 class Message(object):
     """
@@ -45,14 +45,16 @@ class Message(object):
     def apply_to_conn_control(self, conn, control):
         # self, the msg received
         if self.msg_type == INTEREST:
-            print_yellow("Received INTEREST")
+            print_yellow("Received INTEREST from %s" % control.peer_id)
             conn.set_interested(True)
         elif self.msg_type == UNINTEREST:
+            print_yellow("Received UNINTEREST from %s" % control.peer_id)
             conn.set_interested(False)
         elif self.msg_type == CHOKE:
+            print_yellow("Received CHOKE from %s" % control.peer_id)
             conn.set_choked(True)
         elif self.msg_type == UNCHOKE:
-            print_yellow("Received UNCHOKE")
+            print_yellow("Received UNCHOKE from %s" % control.peer_id)
             conn.set_choked(False)
         elif self.msg_type == REQUEST:
             if conn.get_interested():
@@ -197,7 +199,7 @@ class Connection(object):
             message.skt_send(self.skt, msg)
 
             if msg.msg_type == REQUEST:
-                print_yellow("Sent request for [%d:%d]" % (msg.piece, msg.subpiece))
+                print_red("Sent request for [%d:%d]" % (msg.piece, msg.subpiece))
             elif msg.msg_type == PAYLOAD:
                 print_red("Sent payload [%d:%d]" % (msg.piece, msg.subpiece))
 

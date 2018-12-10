@@ -1,17 +1,17 @@
-import socket, time, threading, sys, threading
+# Python 3.7
+import socket, time, threading, sys, threading, json, requests
 from _thread import *
 
 from util import *
 import model, view, message, strategy
 
-
 class Control(object):
-    def __init__(self, file_id, total_pieces, finished_pieces=[]):
+    def __init__(self, file_id, peer_id, finished_pieces=[]):
         self.connections = {}
         self.file_id = file_id
+        self.peer_id = peer_id
         self.next_piece_cv = threading.Condition()
         # Keep track of pieces/subpieces progress
-        self.total_pieces = total_pieces
         self.peer_pieces = {}
         self.piece_to_peers = {}
         self.finished_pieces = finished_pieces
@@ -142,7 +142,7 @@ def download_control_thread(control):
         conn.send_request(piece, subpiece)
         # TODO FIXME: not really needed when next_subpiece actually blocks
         # because currently subpiece size is too small
-        if counter == 4:
+        if counter == 3:
             time.sleep(1)
             counter = 0
 
@@ -155,33 +155,46 @@ def upload_control_thread(control):
             x.send_unchoke()
         time.sleep(10)
 
-def search_for_peers(f, control):
-    for line in f:
-        (ip, port) = line.rstrip().split(":")
-        skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        skt.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        port = int(port)
-        skt.connect((ip, port))
-        control.add_peer(ip, port, skt)
-        start_new_thread(connection_read_thread, (control, ip, port))
-        start_new_thread(connection_write_thread, (control, ip, port))
+def search_for_peers(control, url, infohash, p_port, host):
+    known_peers = set()
+    while True:
+        time.sleep(5)
+        resp = requests.get("http://%s/info_hash=%s&port=%d" % (url, infohash, p_port))
+        peers = json.loads(resp.text)["peers"]
+        for peer in peers:
+            ip = peer[0]
+            port = peer[1]
+            if str(ip) == str(host) and p_port == port:
+                continue
+            if (ip, port) in known_peers:
+                continue
+            print("Adding peers %s:%s" % (str(ip), str(port)))
+            known_peers.add((ip, port))
+            skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            skt.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            port = int(port)
+            skt.connect((ip, port))
+            control.add_peer(ip, port, skt)
+            start_new_thread(connection_read_thread, (control, ip, port))
+            start_new_thread(connection_write_thread, (control, ip, port))
 
 def main():
     finished_pieces = []
-    HOST = "127.0.0.1"
+    IP = "127.0.0.1"
     PORT = int(sys.argv[1])
-    for x in sys.argv[2:]:
+    tracker_url = sys.argv[2]
+    info_hash = sys.argv[3]
+    for x in sys.argv[4:]:
         finished_pieces.append(int(x))
     print_green("Got pieces: %s" % str(finished_pieces))
-    file_id = 1
-    total_pieces = 4
-    control = Control(file_id, total_pieces, finished_pieces)
-    start_new_thread(search_for_peers, (sys.stdin, control))
+    peer_id = "%s:%d" % (IP, PORT)
+    control = Control(info_hash, peer_id, finished_pieces)
+    start_new_thread(search_for_peers, (control, tracker_url, info_hash, PORT, IP))
     start_new_thread(upload_control_thread, (control, ))
     start_new_thread(download_control_thread, (control, ))
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((HOST, PORT))
+        s.bind((IP, PORT))
         s.listen(5)
         # a forever loop until client wants to exit 
         while True: 

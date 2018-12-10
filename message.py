@@ -42,7 +42,11 @@ def skt_recv(skt):
         sp = int.from_bytes(msg[idx + 4:idx + 8], ENDIAN)
         idx = idx + 8
         if t == PAYLOAD:
-            py = msg[idx:]
+            # Actually is msg[idx:], to save memory use a costant
+            # since the purpose of this project is to distribute
+            # content, thus receiving it in memory is good enough,
+            # no need to actually write it to file system.
+            py = 'PAYLOAD'
     if t == ANNOUNCE:
         ap_len = int.from_bytes(msg[idx:idx + 4], ENDIAN)
         idx = idx + 4

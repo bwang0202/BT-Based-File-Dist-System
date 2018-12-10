@@ -38,24 +38,29 @@ def append_dict_dict(d, k, v, vv):
     tmp[v] = vv
     d[k] = tmp
 
+DEBUG = True
+
 def print_red(s):
-    print(colors.red(s)) # send piece payload
+    if DEBUG:
+        print(colors.red(s)) # send piece payload
 
 def print_green(s):
     print(colors.green(s)) # recieved piece
 
 def print_blue(s):
-    print(colors.blue(s)) # subpieces stuff
+    if DEBUG:
+        print(colors.blue(s)) # subpieces stuff
 
 def print_yellow(s):
     print(colors.yellow(s))  # Signals like choke, unchoke, interested, request
 
 # FOR DEBUGGING purpose
-CONCURRENT_PIECES = 2
-PIPELINED_REQUEST = 2
+CONCURRENT_PIECES = 4
+PIPELINED_REQUEST = 5
 
 DEBUG_PIECE_SUBPIECES = 8
-DEBUG_SUBPIECE_PAYLOAD = b'\x01\x02\x03\x04\x05\x06\x07\x08\x09'
+# 128KB
+DEBUG_SUBPIECE_PAYLOAD = b'\x01\x02\x03\x04\x05\x06\x07\x08' * 16384
 
 LENLEN = 4
 MAGIC = b"BITTORRENT"

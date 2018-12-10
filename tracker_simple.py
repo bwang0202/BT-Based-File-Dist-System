@@ -1,4 +1,4 @@
-# Python2.7
+# Python 2.7
 import time
 import BaseHTTPServer
 from urlparse import parse_qs
@@ -19,11 +19,11 @@ class PeersData():
     def __init__(self):
         self.torrents = {}
 
-    def add_peer(self, info_hash, peer_id, ip, port):
-        if info_hash in self.torrents and (peer_id, ip, port) not in self.torrents[info_hash]:
-            self.torrents[info_hash].append((peer_id, ip, port))
+    def add_peer(self, info_hash, ip, port):
+        if info_hash in self.torrents and (ip, port) not in self.torrents[info_hash]:
+            self.torrents[info_hash].append((ip, port))
         if info_hash not in self.torrents:
-            self.torrents[info_hash] = [(peer_id, ip, port)]
+            self.torrents[info_hash] = [(ip, port)]
 
     def get_peers(self):
         return self.torrents
@@ -40,11 +40,10 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         info_hash = client_info["info_hash"][0]
         ip = s.client_address[0]
         port = client_info["port"][0]
-        peer_id = client_info["peer_id"][0]
 
         response = {}
         response["peers"] = data.get_peers().get(info_hash, [])
-        data.add_peer(info_hash, peer_id, ip, port)
+        data.add_peer(info_hash, ip, port)
         s.send_response(200)
         s.end_headers()
         s.wfile.write(json.dumps(response))
