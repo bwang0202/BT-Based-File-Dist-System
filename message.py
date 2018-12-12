@@ -6,15 +6,19 @@ def _skt_send_msg(skt, msg):
     skt.send(len(msg).to_bytes(LENLEN, ENDIAN))
     skt.send(msg)
 
-def _skt_recv_msg(skt):
+def _skt_recv_msg(connection):
     msg = ""
+    skt = connection.get_skt()
     magic = skt.recv(len(MAGIC))
     todo = 0
     if magic == MAGIC:
         todo = int.from_bytes(skt.recv(LENLEN), ENDIAN)
         msg = b""
         while todo > 0:
+            start = epoch_microsec()
             readed = skt.recv(todo)
+            end = epoch_microsec()
+            connection.update_download_speed(len(readed), start, end)
             msg += readed
             todo -= len(readed)
     return msg
@@ -26,11 +30,11 @@ def skt_send(skt, message):
     """
     _skt_send_msg(skt, message.to_barray())
 
-def skt_recv(skt):
+def skt_recv(connection):
     """
     return a Message object
     """
-    msg = _skt_recv_msg(skt)
+    msg = _skt_recv_msg(connection)
     t = msg[0]
     p = None
     sp = None

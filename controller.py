@@ -6,13 +6,16 @@ from util import *
 import model, view, message, strategy
 
 class Control(object):
-    def __init__(self, file_id, finished_pieces=[]):
+    def __init__(self, file_id, finished_pieces=[], total_pieces=0, result_file=None):
         self.connections = {}
         self.file_id = file_id
-        self.next_piece_cv = threading.Condition()
+        self.lock = threading.Lock()
+        self.next_piece_cv = threading.Condition(self.lock)
         # Keep track of pieces/subpieces progress
         self.peer_pieces = {}
         self.piece_to_peers = {}
+        self.total_pieces = total_pieces
+        self.result_file = result_file
         self.finished_pieces = finished_pieces
         self.finished_subpieces = {}
         self.ongoing_pieces = []
@@ -20,10 +23,11 @@ class Control(object):
         self.ongoing_peer_subpieces = {}
 
     def add_peer(self, ip, port, conn, peer_id=0):
-        # Create the socket connection, store in Connection object
-        new_conn = model.Connection(conn, ip, port, peer_id)
-        self.connections[(ip, port)] = new_conn
-        new_conn.announce_pieces(self.finished_pieces)
+        with self.lock:
+            # Create the socket connection, store in Connection object
+            new_conn = model.Connection(conn, ip, port, peer_id)
+            self.connections[(ip, port)] = new_conn
+            new_conn.announce_pieces(self.finished_pieces)
 
     def _available_peer_for_piece(self, piece):
         # find a peer for np
@@ -95,12 +99,16 @@ class Control(object):
                     print_green("Received piece [%d]" % piece)
             self.next_piece_cv.notify()
         if need_annouce:
-            for x in self.connections.values():
-                x.announce_pieces([piece])
+            with self.lock:
+                for x in self.connections.values():
+                    x.announce_pieces([piece])
+                if len(self.finished_pieces) == self.total_pieces:
+                    complete_download(self.result_file)
 
     def get_peer(self, ip, port):
-        # TODO: check connections dead or not also
-        return self.connections[(ip, port)]
+        with self.lock:
+            # TODO: check connections dead or not also
+            return self.connections[(ip, port)]
 
     def peer_has_piece(self, ip, port, piece):
         with self.next_piece_cv:
@@ -111,7 +119,8 @@ class Control(object):
             self.next_piece_cv.notify()
 
     def peers_to_unchoke(self):
-        return strategy.peers_to_unchoke(self.connections.values())
+        with self.lock:
+            return strategy.peers_to_unchoke(self.connections.values())
 
 def _get_conn_from_control(control, ip, port):
     return control.get_peer(ip, port)
@@ -121,7 +130,7 @@ def connection_read_thread(control, ip, port):
     conn = _get_conn_from_control(control, ip, port)
     while True:
         # Block until some message arrives
-        msg = message.skt_recv(conn.skt)
+        msg = message.skt_recv(conn)
         msg.apply_to_conn_control(conn, control)
 
 def connection_write_thread(control, ip, port, peer_id):
@@ -132,19 +141,19 @@ def connection_write_thread(control, ip, port, peer_id):
         conn.serve_one()
 
 def download_control_thread(control):
-    counter = 0
+    # counter = 0
     while True:
-        counter += 1
+        # counter += 1
         # Block until can request next subpiece
         (ip, port, piece, subpiece) = control.next_subpiece()
         conn = _get_conn_from_control(control, ip, port)
         conn.send_type_only(INTEREST)
         conn.send_request(piece, subpiece)
-        # TODO FIXME: not really needed when next_subpiece actually blocks
-        # because currently subpiece size is too small
-        if counter == 3:
-            time.sleep(1)
-            counter = 0
+        # # TODO FIXME: not really needed when next_subpiece actually blocks
+        # # because currently subpiece size is too small
+        # if counter == 3:
+        #     time.sleep(1)
+        #     counter = 0
 
 def upload_control_thread(control):
     while True:
@@ -169,7 +178,7 @@ def search_for_peers(control, url, infohash, my_port, host, my_peer_id):
                 continue
             if (ip, port, peer_id) in known_peers:
                 continue
-            print("Adding peers [%d]%s:%d" % (peer_id, str(ip), port))
+            myprint("Adding peers [%d]%s:%d" % (peer_id, str(ip), port))
             known_peers.add((ip, port, peer_id))
             skt = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             skt.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
@@ -186,10 +195,12 @@ def main():
     tracker_url = sys.argv[2]
     info_hash = sys.argv[3]
     peer_id = int(sys.argv[4])
-    for x in sys.argv[5:]:
+    total_pieces = int(sys.argv[5])
+    result_file = sys.argv[6]
+    for x in sys.argv[7:]:
         finished_pieces.append(int(x))
     print_green("Got pieces: %s" % str(finished_pieces))
-    control = Control(info_hash, finished_pieces)
+    control = Control(info_hash, finished_pieces, total_pieces, result_file)
     start_new_thread(search_for_peers, (control, tracker_url, info_hash, PORT, IP, peer_id))
     start_new_thread(upload_control_thread, (control, ))
     start_new_thread(download_control_thread, (control, ))

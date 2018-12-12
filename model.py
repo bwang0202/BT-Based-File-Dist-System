@@ -95,6 +95,34 @@ class Connection(object):
         self.controls_to_send = []
         self.lock = threading.Lock()
         self.send_cv = threading.Condition(self.lock)
+        self.speed_sum = 0
+        self.time_sum = 0
+        self.speeds = []
+
+    def update_download_speed(self, length, start, end):
+        with self.lock:
+            self.speeds.append((length, start, end))
+            self.speed_sum += length
+            self.time_sum += end - start
+            # in MBps
+            print(self.speed_sum, self.time_sum, length, start, end, 0 if self.time_sum == 0 else (self.speed_sum/self.time_sum))
+            if self.time_sum > 0:
+                print(self.speed_sum / self.time_sum)
+
+    def get_download_speed(self):
+        with self.lock:
+            now = epoch_microsec()
+            while self.speeds and self.speeds[0][2] < now - 20 * 1000 * 1000:
+                removed = self.speeds.pop(0)
+                self.speed_sum -= removed[0]
+                self.time_sum -= removed[2] - removed[1]
+            if not self.time_sum:
+                return 0
+            # In MBps
+            return self.speed_sum / self.time_sum
+
+    def get_skt(self):
+        return self.skt
 
     def set_peer_id(self, peer_id):
         self.peer_id = peer_id

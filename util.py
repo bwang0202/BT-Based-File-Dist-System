@@ -3,6 +3,10 @@
 import threading
 import os, binascii
 import colors
+import calendar, time
+
+def epoch_microsec():
+    return int(round(time.time() * 1000000))
 
 def collapse(data):
     """ Given an homogenous list, returns the items of that list
@@ -38,29 +42,42 @@ def append_dict_dict(d, k, v, vv):
     tmp[v] = vv
     d[k] = tmp
 
-DEBUG = False
+DEBUG = True
+VERBOSE = False
+
+def myprint(s):
+    if DEBUG:
+        print(s)
 
 def print_red(s):
-    if DEBUG:
-        print(colors.red(s)) # send piece payload
+    if VERBOSE:
+        myprint(colors.red(s)) # send piece payload
 
 def print_green(s):
-    print(colors.green(s)) # recieved piece
+    myprint(colors.green(s)) # recieved piece
 
 def print_blue(s):
-    if DEBUG:
-        print(colors.blue(s)) # subpieces stuff
+    if VERBOSE:
+        myprint(colors.blue(s)) # subpieces stuff
 
 def print_yellow(s):
-    print(colors.yellow(s))  # Signals like choke, unchoke, interested, request
+    myprint(colors.yellow(s))  # Signals like choke, unchoke, interested, request
+
+def complete_download(result_file):
+    with open(result_file, 'a') as f:
+        f.write("Done %d\n" % epoch_microsec())
+
 
 # FOR DEBUGGING purpose
 CONCURRENT_PIECES = 4
 PIPELINED_REQUEST = 5
 
+SPEED_UNCHOKE = False
+UNCHOKE_PEERS = 5
+
 DEBUG_PIECE_SUBPIECES = 20
 # 128KB
-DEBUG_SUBPIECE_PAYLOAD = b'\x01\x02\x03\x04\x05\x06\x07\x08' * 16384
+DEBUG_SUBPIECE_PAYLOAD = b'\x01\x02\x03\x04\x05\x06\x07\x08' * 16384 * 2
 
 LENLEN = 4
 MAGIC = b"BITTORRENT"

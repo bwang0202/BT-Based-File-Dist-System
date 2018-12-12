@@ -1,3 +1,4 @@
+from util import *
 
 def choose_next_piece(finished_pieces, piece_to_peers, ongoing_pieces):
     # FIXME: how to guarentee this always succeeds
@@ -8,5 +9,6 @@ def choose_next_piece(finished_pieces, piece_to_peers, ongoing_pieces):
     return None
 
 def peers_to_unchoke(connections):
+    if not SPEED_UNCHOKE:
+        return connections
     # 4 based on download speed and one optimistic unchoke
-    return connections
