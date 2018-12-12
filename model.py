@@ -105,9 +105,9 @@ class Connection(object):
             self.speed_sum += length
             self.time_sum += end - start
             # in MBps
-            print(self.speed_sum, self.time_sum, length, start, end, 0 if self.time_sum == 0 else (self.speed_sum/self.time_sum))
-            if self.time_sum > 0:
-                print(self.speed_sum / self.time_sum)
+            # print(self.speed_sum, self.time_sum, length, start, end, 0 if self.time_sum == 0 else (self.speed_sum/self.time_sum))
+            # if self.time_sum > 0:
+            #    print(self.speed_sum / self.time_sum)
 
     def get_download_speed(self):
         with self.lock:

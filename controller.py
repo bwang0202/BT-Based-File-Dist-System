@@ -6,11 +6,11 @@ from util import *
 import model, view, message, strategy
 
 class Control(object):
-    def __init__(self, file_id, finished_pieces=[], total_pieces=0, result_file=None):
+    def __init__(self, file_id, finished_pieces=[], total_pieces=0, result_file=None, peer_id=0):
         self.connections = {}
+        self.peer_id = peer_id
         self.file_id = file_id
-        self.lock = threading.Lock()
-        self.next_piece_cv = threading.Condition(self.lock)
+        self.next_piece_cv = threading.Condition()
         # Keep track of pieces/subpieces progress
         self.peer_pieces = {}
         self.piece_to_peers = {}
@@ -23,11 +23,10 @@ class Control(object):
         self.ongoing_peer_subpieces = {}
 
     def add_peer(self, ip, port, conn, peer_id=0):
-        with self.lock:
-            # Create the socket connection, store in Connection object
-            new_conn = model.Connection(conn, ip, port, peer_id)
-            self.connections[(ip, port)] = new_conn
-            new_conn.announce_pieces(self.finished_pieces)
+        # Create the socket connection, store in Connection object
+        new_conn = model.Connection(conn, ip, port, peer_id)
+        self.connections[(ip, port)] = new_conn
+        new_conn.announce_pieces(self.finished_pieces)
 
     def _available_peer_for_piece(self, piece):
         # find a peer for np
@@ -99,16 +98,15 @@ class Control(object):
                     print_green("Received piece [%d]" % piece)
             self.next_piece_cv.notify()
         if need_annouce:
-            with self.lock:
-                for x in self.connections.values():
-                    x.announce_pieces([piece])
-                if len(self.finished_pieces) == self.total_pieces:
-                    complete_download(self.result_file)
+            conns = list(self.connections.values())
+            for x in conns:
+                x.announce_pieces([piece])
+            if len(self.finished_pieces) == self.total_pieces:
+                complete_download(self.peer_id, self.result_file)
 
     def get_peer(self, ip, port):
-        with self.lock:
-            # TODO: check connections dead or not also
-            return self.connections[(ip, port)]
+        # TODO: check connections dead or not also
+        return self.connections[(ip, port)]
 
     def peer_has_piece(self, ip, port, piece):
         with self.next_piece_cv:
@@ -119,8 +117,7 @@ class Control(object):
             self.next_piece_cv.notify()
 
     def peers_to_unchoke(self):
-        with self.lock:
-            return strategy.peers_to_unchoke(self.connections.values())
+        return strategy.peers_to_unchoke(self.connections.values())
 
 def _get_conn_from_control(control, ip, port):
     return control.get_peer(ip, port)
@@ -167,7 +164,7 @@ def upload_control_thread(control):
 def search_for_peers(control, url, infohash, my_port, host, my_peer_id):
     known_peers = set()
     while True:
-        time.sleep(5)
+        # wait for all peers are up
         resp = requests.get("http://%s/info_hash=%s&port=%d&peer_id=%s" % (url, infohash, my_port, my_peer_id))
         peers = json.loads(resp.text)["peers"]
         for peer in peers:
@@ -187,6 +184,7 @@ def search_for_peers(control, url, infohash, my_port, host, my_peer_id):
             control.add_peer(ip, port, skt, peer_id)
             start_new_thread(connection_read_thread, (control, ip, port))
             start_new_thread(connection_write_thread, (control, ip, port, my_peer_id))
+        time.sleep(5)
 
 def main():
     finished_pieces = []
@@ -200,8 +198,11 @@ def main():
     for x in sys.argv[7:]:
         finished_pieces.append(int(x))
     print_green("Got pieces: %s" % str(finished_pieces))
-    control = Control(info_hash, finished_pieces, total_pieces, result_file)
+    control = Control(info_hash, finished_pieces, total_pieces, result_file, peer_id)
     start_new_thread(search_for_peers, (control, tracker_url, info_hash, PORT, IP, peer_id))
+    # make sure all peers are up
+    #time.sleep(40)
+    start_download(peer_id, result_file)
     start_new_thread(upload_control_thread, (control, ))
     start_new_thread(download_control_thread, (control, ))
 

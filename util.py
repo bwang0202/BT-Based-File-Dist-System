@@ -63,10 +63,12 @@ def print_blue(s):
 def print_yellow(s):
     myprint(colors.yellow(s))  # Signals like choke, unchoke, interested, request
 
-def complete_download(result_file):
+def complete_download(peer_id, result_file):
     with open(result_file, 'a') as f:
-        f.write("Done %d\n" % epoch_microsec())
-
+        f.write("%s Done at %d\n" % (str(peer_id), epoch_microsec()))
+def start_download(peer_id, result_file):
+    with open(result_file, 'a') as f:
+        f.write("%s Start at %d\n" % (str(peer_id), epoch_microsec()))
 
 # FOR DEBUGGING purpose
 CONCURRENT_PIECES = 4
