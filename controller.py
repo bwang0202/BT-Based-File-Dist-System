@@ -155,11 +155,13 @@ def download_control_thread(control):
 def upload_control_thread(control):
     while True:
         # peers_to_unchoke
-        conns_to_unchoke = control.peers_to_unchoke()
+        (conns_to_unchoke, conns_to_choke) = control.peers_to_unchoke()
         # Serve that peer
         for x in conns_to_unchoke:
             x.send_unchoke()
-        time.sleep(1)
+        for x in conns_to_choke:
+            x.send_choke()
+        time.sleep(10)
 
 def search_for_peers(control, url, infohash, my_port, host, my_peer_id):
     known_peers = set()

@@ -206,6 +206,16 @@ class Connection(object):
                 self.send_cv.notify()
         myprint("[send_unchoke][2]")
 
+    def send_choke(self):
+        myprint("[send_choke][0]")
+        with self.send_cv:
+            myprint("[send_choke][0.5]")
+            self.controls_to_send.insert(0, Message(CHOKE))
+            if len(self.controls_to_send) > 0:
+                myprint("[send_choke][1]")
+                self.send_cv.notify()
+        myprint("[send_choke][2]")
+
     def send_request(self, piece, subpiece):
         myprint("[send_request][0]")
         with self.send_cv:
