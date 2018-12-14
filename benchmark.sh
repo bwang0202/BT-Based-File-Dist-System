@@ -2,10 +2,10 @@
 set -e
 
 FILEID=1234
-PORT=9001
+PORT=8001
 RESULTFILE="r.txt"
 PEERS=10
-TOTAL=$((PEERS*5))
+TOTAL=$((PEERS*500))
 
 rm -f $RESULTFILE
 touch $RESULTFILE
@@ -16,7 +16,7 @@ for i in $(seq 1 $PEERS)
 do
 	PORT=$((PORT + 1))
 	set -x
-	python3 controller.py $PORT "localhost:8999" $FILEID $i $TOTAL "$RESULTFILE" $(($((5*i))-4)) $(($((5*i))+1)) &
+	python3 controller.py $PORT "localhost:8999" $FILEID $i $TOTAL "$RESULTFILE" $(($((500*i))-499)) $(($((500*i))+1)) &
 	set +x
 	sleep 1
 done
