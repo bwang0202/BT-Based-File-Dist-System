@@ -81,11 +81,12 @@ class Connection(object):
     """
     Represents a Connection to a peer
     """
-    def __init__(self, skt, ip, port, peer_id=0):
+    def __init__(self, skt, ip, port, peer_id=0, control=None):
         self.skt = skt
         self.ip = ip
         self.port = port
         self.peer_id = peer_id
+        self.control = control
         self.choked = True
         self.choking = True
         self.interested = False
@@ -296,7 +297,7 @@ class Connection(object):
                     return
                 self.interesting = False
 
-        message.skt_send(self.skt, msg)
+        message.skt_send(self.skt, msg, self.peer_id, self.control.peer_id)
         myprint("[serve_one][3.99]")
 
         if msg.msg_type == REQUEST:

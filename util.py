@@ -5,32 +5,9 @@ import os, binascii
 import colors
 import calendar, time
 
+############## UTILITIES Functions ##################################################
 def epoch_microsec():
     return int(round(time.time() * 1000000))
-
-def collapse(data):
-    """ Given an homogenous list, returns the items of that list
-    concatenated together. """
-
-    return reduce(lambda x, y: x + y, data)
-
-def slice(string, n):
-    """ Given a string and a number n, cuts the string up, returns a
-    list of strings, all size n. """
-
-    temp = []
-    i = n
-    while i <= len(string):
-        temp.append(string[(i-n):i])
-        i += n
-
-    try:    # Add on any stragglers
-        if string[(i-n)] != "":
-            temp.append(string[(i-n):])
-    except IndexError:
-        pass
-
-    return temp
 
 def append_dict_list(d, k, v):
     tmp = d.get(k, [])
@@ -42,6 +19,9 @@ def append_dict_dict(d, k, v, vv):
     tmp[v] = vv
     d[k] = tmp
 
+
+############## DEBUG Printing Functions ############################################
+
 DEBUG = True
 VERBOSE = False
 VERBOSE_VERBOSE = False
@@ -51,18 +31,22 @@ def myprint(s):
         print(s)
 
 def print_red(s):
+    # send piece payload
     if VERBOSE:
-        print(colors.red(s)) # send piece payload
+        print(colors.red(s))
 
 def print_green(s):
-    print(colors.green(s)) # recieved piece
+    # recieved piece
+    print(colors.green(s))
 
 def print_blue(s):
+    # subpieces stuff
     if VERBOSE:
-        print(colors.blue(s)) # subpieces stuff
+        print(colors.blue(s))
 
 def print_yellow(s):
-    print(colors.yellow(s))  # Signals like choke, unchoke, interested, request
+    # Signals like choke, unchoke, interested, request
+    print(colors.yellow(s))
 
 def complete_download(peer_id, result_file):
     with open(result_file, 'a') as f:
@@ -71,17 +55,37 @@ def start_download(peer_id, result_file):
     with open(result_file, 'a') as f:
         f.write("%s Start at %d\n" % (str(peer_id), epoch_microsec()))
 
-# FOR DEBUGGING purpose
-CONCURRENT_PIECES = 5
-PIPELINED_REQUEST = 5
 
-SPEED_UNCHOKE = True
+
+################ UNCHOKE algorithms ###############################################
+SPEED_UNCHOKE = False
 UNCHOKE_PEERS = 1
 
+################ Simulating Network Delays ########################################
+SIMULATE_DELAYS = True
+WASTE_RESOURCES = 512
+DELAY_EVERY_BYTES = 32*16
+
+def needs_delay(peer_id1, peer_id2):
+    return peer_id1 % 2 != peer_id2 % 2
+
+def slowdown_uploads():
+    i = 0
+    while True:
+        i = i + 1
+        if i > WASTE_RESOURCES:
+            return
+
+
+############### PREDEFINED PARAMETERS for BitTorrent Protocol #####################
+CONCURRENT_PIECES = 4
+PIPELINED_REQUEST = 5
 DEBUG_PIECE_SUBPIECES = 20
-# 128KB
+# 256KB, for performance measurement purposes, no need to use actual file content
 DEBUG_SUBPIECE_PAYLOAD = b'\x01\x02\x03\x04\x05\x06\x07\x08' * 16384 * 2
 
+
+############### PROTOCOL USED COMMON CONSTANTS ####################################
 LENLEN = 4
 MAGIC = b"BITTORRENT"
 ENDIAN = 'big'

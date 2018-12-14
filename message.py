@@ -1,10 +1,18 @@
 import model
 from util import *
 
-def _skt_send_msg(skt, msg):
+def _skt_send_msg(skt, msg, dest_peer_id, source_peer_id, is_payload):
     skt.send(MAGIC)
     skt.send(len(msg).to_bytes(LENLEN, ENDIAN))
-    skt.send(msg)
+    if is_payload and SIMULATE_DELAYS and needs_delay(source_peer_id, dest_peer_id):
+        todo = len(msg)
+        idx = 0
+        while idx < todo:
+            skt.send(msg[idx:idx + DELAY_EVERY_BYTES])
+            slowdown_uploads()
+            idx += DELAY_EVERY_BYTES
+    else:
+        skt.send(msg)
 
 def _skt_recv_msg(connection):
     msg = ""
@@ -23,7 +31,7 @@ def _skt_recv_msg(connection):
             todo -= len(readed)
     return msg
 
-def skt_send(skt, message):
+def skt_send(skt, message, dest_peer_id, source_peer_id):
     """
     skt, socket
     message, Message object
@@ -33,7 +41,7 @@ def skt_send(skt, message):
     m = message.to_barray()
     # if message.msg_type == PAYLOAD:
     #     print("[skt_send][0.5]")
-    _skt_send_msg(skt, m)
+    _skt_send_msg(skt, m, dest_peer_id, source_peer_id, message.msg_type == PAYLOAD)
     # if message.msg_type == PAYLOAD:
     #     print("[skt_send][1]")
 

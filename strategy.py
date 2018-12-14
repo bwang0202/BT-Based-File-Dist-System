@@ -11,11 +11,13 @@ def choose_next_piece(finished_pieces, piece_to_peers, ongoing_pieces):
 
 def peers_to_unchoke(connections):
     if not SPEED_UNCHOKE:
-        return (connections, connections)
+        for conn in connections:
+            print("peer_id %s download speed %s" % (str(conn.peer_id), str(conn.get_download_speed())))
+        return (connections, [])
     # 4 based on download speed and one optimistic unchoke
     # First try random unchoke
     if len(connections) == 0:
-        return (connections, connections)
+        return ([], [])
     to_unchokes = []
     for x in range(UNCHOKE_PEERS):
         to_unchoke = randint(0, len(connections) - 1)

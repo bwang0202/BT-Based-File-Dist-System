@@ -24,7 +24,7 @@ class Control(object):
 
     def add_peer(self, ip, port, conn, peer_id=0):
         # Create the socket connection, store in Connection object
-        new_conn = model.Connection(conn, ip, port, peer_id)
+        new_conn = model.Connection(conn, ip, port, peer_id, self)
         self.connections[(ip, port)] = new_conn
         new_conn.announce_pieces(self.finished_pieces)
 
