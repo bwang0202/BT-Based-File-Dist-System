@@ -90,7 +90,6 @@ class Control(object):
                 append_dict_dict(self.finished_subpieces, piece, subpiece, payload)
                 if len(self.finished_subpieces[piece]) == DEBUG_PIECE_SUBPIECES:
                     self.finished_pieces.append(piece)
-                    # TODO: Construct the piece
                     self.finished_subpieces.pop(piece)
                     self.ongoing_pieces.remove(piece)
                     self.ongoing_pieces_request_subpieces.pop(piece)

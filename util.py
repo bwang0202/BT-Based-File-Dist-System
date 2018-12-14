@@ -58,13 +58,14 @@ def start_download(peer_id, result_file):
 
 
 ################ UNCHOKE algorithms ###############################################
-SPEED_UNCHOKE = False
+SPEED_UNCHOKE = True
 UNCHOKE_PEERS = 1
+RANDOM_UNCHOKE = False
 
 ################ Simulating Network Delays ########################################
 SIMULATE_DELAYS = True
 WASTE_RESOURCES = 512
-DELAY_EVERY_BYTES = 32*16
+DELAY_EVERY_BYTES = 32*32
 
 def needs_delay(peer_id1, peer_id2):
     return peer_id1 % 2 != peer_id2 % 2
@@ -78,7 +79,7 @@ def slowdown_uploads():
 
 
 ############### PREDEFINED PARAMETERS for BitTorrent Protocol #####################
-CONCURRENT_PIECES = 4
+CONCURRENT_PIECES = 5
 PIPELINED_REQUEST = 5
 DEBUG_PIECE_SUBPIECES = 20
 # 256KB, for performance measurement purposes, no need to use actual file content

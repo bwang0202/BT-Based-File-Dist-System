@@ -5,6 +5,7 @@ def _skt_send_msg(skt, msg, dest_peer_id, source_peer_id, is_payload):
     skt.send(MAGIC)
     skt.send(len(msg).to_bytes(LENLEN, ENDIAN))
     if is_payload and SIMULATE_DELAYS and needs_delay(source_peer_id, dest_peer_id):
+        slowdown_uploads()
         todo = len(msg)
         idx = 0
         while idx < todo:
