@@ -28,7 +28,14 @@ def skt_send(skt, message):
     skt, socket
     message, Message object
     """
-    _skt_send_msg(skt, message.to_barray())
+    # if message.msg_type == PAYLOAD:
+    #     print("[skt_send][0]")
+    m = message.to_barray()
+    # if message.msg_type == PAYLOAD:
+    #     print("[skt_send][0.5]")
+    _skt_send_msg(skt, m)
+    # if message.msg_type == PAYLOAD:
+    #     print("[skt_send][1]")
 
 def skt_recv(connection):
     """

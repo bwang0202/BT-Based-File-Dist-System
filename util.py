@@ -44,24 +44,25 @@ def append_dict_dict(d, k, v, vv):
 
 DEBUG = True
 VERBOSE = False
+VERBOSE_VERBOSE = False
 
 def myprint(s):
-    if DEBUG:
+    if DEBUG and VERBOSE and VERBOSE_VERBOSE:
         print(s)
 
 def print_red(s):
     if VERBOSE:
-        myprint(colors.red(s)) # send piece payload
+        print(colors.red(s)) # send piece payload
 
 def print_green(s):
-    myprint(colors.green(s)) # recieved piece
+    print(colors.green(s)) # recieved piece
 
 def print_blue(s):
     if VERBOSE:
-        myprint(colors.blue(s)) # subpieces stuff
+        print(colors.blue(s)) # subpieces stuff
 
 def print_yellow(s):
-    myprint(colors.yellow(s))  # Signals like choke, unchoke, interested, request
+    print(colors.yellow(s))  # Signals like choke, unchoke, interested, request
 
 def complete_download(peer_id, result_file):
     with open(result_file, 'a') as f:
@@ -71,7 +72,7 @@ def start_download(peer_id, result_file):
         f.write("%s Start at %d\n" % (str(peer_id), epoch_microsec()))
 
 # FOR DEBUGGING purpose
-CONCURRENT_PIECES = 4
+CONCURRENT_PIECES = 5
 PIPELINED_REQUEST = 5
 
 SPEED_UNCHOKE = False

@@ -117,7 +117,7 @@ class Control(object):
             self.next_piece_cv.notify()
 
     def peers_to_unchoke(self):
-        return strategy.peers_to_unchoke(self.connections.values())
+        return strategy.peers_to_unchoke(list(self.connections.values()))
 
 def _get_conn_from_control(control, ip, port):
     return control.get_peer(ip, port)
@@ -159,7 +159,7 @@ def upload_control_thread(control):
         # Serve that peer
         for x in conns_to_unchoke:
             x.send_unchoke()
-        time.sleep(10)
+        time.sleep(1)
 
 def search_for_peers(control, url, infohash, my_port, host, my_peer_id):
     known_peers = set()
@@ -171,7 +171,9 @@ def search_for_peers(control, url, infohash, my_port, host, my_peer_id):
             ip = peer[0]
             port = int(peer[1])
             peer_id = int(peer[2])
-            if peer_id == my_peer_id:
+            # Note: only connecting to peers whose peer_id is smaller than me, to make sure
+            # two peers don't establish duplicate connections
+            if peer_id >= my_peer_id:
                 continue
             if (ip, port, peer_id) in known_peers:
                 continue
@@ -195,8 +197,7 @@ def main():
     peer_id = int(sys.argv[4])
     total_pieces = int(sys.argv[5])
     result_file = sys.argv[6]
-    for x in sys.argv[7:]:
-        finished_pieces.append(int(x))
+    finished_pieces = list(range(int(sys.argv[7]), int(sys.argv[8])))
     print_green("Got pieces: %s" % str(finished_pieces))
     control = Control(info_hash, finished_pieces, total_pieces, result_file, peer_id)
     start_new_thread(search_for_peers, (control, tracker_url, info_hash, PORT, IP, peer_id))
@@ -214,6 +215,7 @@ def main():
             # establish connection with client
             c, (ip, port) = s.accept()
             control.add_peer(ip, port, c)
+            myprint("Accepting peers []%s:%d" % (str(ip), port))
             start_new_thread(connection_read_thread, (control, ip, port))
             start_new_thread(connection_write_thread, (control, ip, port, peer_id))
 
