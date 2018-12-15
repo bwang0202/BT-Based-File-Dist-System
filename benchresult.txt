@@ -1,4 +1,5 @@
 subpiece 256kb, 20 subpiece per piece, 200 piece per peer, 10 peer. 2000 piece in total
+5mb per piece, 1800 * 5 mb / average()
 
 1 904513316
 2 905177957
