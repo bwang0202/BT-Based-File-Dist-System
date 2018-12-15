@@ -4,21 +4,28 @@ set -e
 FILEID=1234
 PORT=8001
 RESULTFILE="r.txt"
-PEERS=10
-TOTAL=$((PEERS*200))
+PEER_PAIRS=5
+TOTAL=$((PEER_PAIRS*400))
 
 rm -f $RESULTFILE
 touch $RESULTFILE
 
 python tracker_simple.py >/dev/null 2>/dev/null &
+j=0
 
-for i in $(seq 1 $PEERS)
+for i in $(seq 1 $PEER_PAIRS)
 do
+	j=$((j + 1))
 	PORT=$((PORT + 1))
 	set -x
-	python3 controller.py $PORT "localhost:8999" $FILEID $i $TOTAL "$RESULTFILE" $(($((200*i))-199)) $(($((200*i))+1)) &
+	python3 controller.py $PORT "localhost:8999" $FILEID $j $TOTAL "$RESULTFILE" $(($((400*i))-399)) $(($((400*i))+1)) &
 	set +x
 	sleep 1
+	PORT=$((PORT + 1))
+	j=$((j + 1))
+	set -x
+	python3 controller.py $PORT "localhost:8999" $FILEID $j $TOTAL "$RESULTFILE" $(($((400*i))-399)) $(($((400*i))+1)) &
+	set +x
 done
 
 

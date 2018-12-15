@@ -58,14 +58,14 @@ def start_download(peer_id, result_file):
 
 
 ################ UNCHOKE algorithms ###############################################
-SPEED_UNCHOKE = True
-UNCHOKE_PEERS = 1
+SPEED_UNCHOKE = False
+UNCHOKE_PEERS = 4
 RANDOM_UNCHOKE = False
 
 ################ Simulating Network Delays ########################################
 SIMULATE_DELAYS = True
-WASTE_RESOURCES = 512
-DELAY_EVERY_BYTES = 32*32
+WASTE_RESOURCES = 128
+DELAY_EVERY_BYTES = 64*64
 
 def needs_delay(peer_id1, peer_id2):
     return peer_id1 % 2 != peer_id2 % 2
